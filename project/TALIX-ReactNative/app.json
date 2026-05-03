@@ -1,0 +1,29 @@
+// TALIX React Native — app.json
+{
+  "expo": {
+    "name": "TALIX",
+    "slug": "talix-usil",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1B4FBE"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "pe.edu.usil.talix"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1B4FBE"
+      },
+      "package": "pe.edu.usil.talix",
+      "googleServicesFile": "./google-services.json"
+    },
+    "plugins": ["expo-image-picker"]
+  }
+}
