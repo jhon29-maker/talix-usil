@@ -5,7 +5,7 @@ export const THEMES = {
 };
 
 export const TWEAK_DEFAULTS = {
-  theme: 'azul',
+  theme: 'verde',
   density: 'normal',
   cardStyle: 'redondeado',
 };
