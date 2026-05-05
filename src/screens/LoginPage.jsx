@@ -13,6 +13,7 @@ export default function LoginPage({ onLogin, onAdminAccess, theme }) {
   const [error, setError] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [termsChecked, setTermsChecked] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   const handle = async () => {
     setError('');
@@ -23,6 +24,9 @@ export default function LoginPage({ onLogin, onAdminAccess, theme }) {
         if (!name) { setError('Ingresa tu nombre completo.'); setLoading(false); return; }
         if (!termsChecked) { setError('Debes aceptar los Términos y la Política de Privacidad para continuar.'); setLoading(false); return; }
         await Auth.register(email, pass, name, faculty || 'No especificada');
+        setRegistered(true);
+        setLoading(false);
+        return;
       } else {
         await Auth.login(email, pass);
       }
@@ -67,6 +71,26 @@ export default function LoginPage({ onLogin, onAdminAccess, theme }) {
 
       {/* Right panel */}
       <div style={{ width: 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 56px', background: '#fff', overflowY: 'auto' }}>
+        {registered ? (
+          <div style={{ width: '100%', maxWidth: 380, textAlign: 'center' }}>
+            <div style={{ fontSize: 72, marginBottom: 16 }}>🎉</div>
+            <div style={{ fontWeight: 800, fontSize: 24, color: '#1C2B2B', marginBottom: 10 }}>¡Bienvenido a TALIX!</div>
+            <div style={{ color: '#555', fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
+              Te hemos enviado un correo a <strong>{email}</strong> para verificar tu cuenta.<br />
+              Revisa tu bandeja de entrada (y también spam).
+            </div>
+            <div style={{ background: '#F0F4FA', borderRadius: 16, padding: '20px 24px', marginBottom: 24, textAlign: 'left' }}>
+              {[['♻️', 'Publica tus primeros artículos'], ['🤝', 'Conecta con compañeros USIL'], ['📍', 'Coordina trueques en Eco-Spots'], ['🌿', 'Reduce tu huella de carbono']].map(([icon, text]) => (
+                <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 13, color: '#444' }}>
+                  <span style={{ fontSize: 18 }}>{icon}</span> {text}
+                </div>
+              ))}
+            </div>
+            <button onClick={onLogin} style={{ width: '100%', padding: '14px', background: theme.primary, color: '#fff', border: 'none', borderRadius: 14, fontFamily: 'Poppins', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+              Entrar a TALIX →
+            </button>
+          </div>
+        ) : (
         <div style={{ width: '100%', maxWidth: 380 }}>
           <div style={{ fontWeight: 800, fontSize: 26, color: '#1C2B2B', marginBottom: 6 }}>
             {tab === 'login' ? 'Bienvenido 👋' : 'Únete a TALIX 🎉'}
@@ -167,6 +191,7 @@ export default function LoginPage({ onLogin, onAdminAccess, theme }) {
             </button>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

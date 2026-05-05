@@ -3,6 +3,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  sendEmailVerification,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, collection, addDoc } from 'firebase/firestore';
 import { FIREBASE_READY, auth, db } from '../config/firebase';
@@ -72,6 +73,10 @@ export const Auth = {
       await Promise.all([
         setDoc(doc(db, 'users', cred.user.uid), profile),
         saveEmailRegistry(email, displayName, faculty),
+        sendEmailVerification(cred.user, {
+          url: window.location.origin,
+          handleCodeInApp: false,
+        }),
       ]);
       localStorage.setItem('talix_current_user', JSON.stringify(profile));
       return profile;
