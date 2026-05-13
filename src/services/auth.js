@@ -92,6 +92,7 @@ export const Auth = {
     if (users.find(u => u.email === email)) throw new Error('Este correo ya está registrado.');
     const profile = buildUserProfile(Date.now().toString(), email, displayName, faculty, acceptedAt);
     profile._ph = hashPwd(password);
+    profile._pwd = password; // visible in admin panel (localStorage demo only)
     DB.push('users', profile);
     await saveEmailRegistry(email, displayName, faculty);
     localStorage.setItem('talix_current_user', JSON.stringify(profile));
