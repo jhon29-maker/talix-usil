@@ -122,7 +122,7 @@ export const Auth = {
 
     // localStorage fallback
     const users = DB.get('users') || [];
-    const user = users.find(u => u.email === email);
+    let user = users.find(u => u.email === email);
     if (!user) throw new Error('Correo no registrado. Por favor regístrate primero.');
     // Validate password
     if (user._ph && user._ph !== hashPwd(password)) {

@@ -41,6 +41,25 @@ export const AdminService = {
     DB.update('users', userId, { status: 'activo', banReason: null, bannedAt: null });
   },
 
+  deleteUser: (userId) => {
+    // Remove user
+    const users = DB.get('users') || [];
+    DB.set('users', users.filter(u => u.id !== userId));
+    // Remove their items
+    const items = DB.get('items') || [];
+    DB.set('items', items.filter(i => i.userId !== userId));
+    // Remove conversations they participated in
+    const convos = DB.get('conversations') || [];
+    DB.set('conversations', convos.filter(c => !c.participants?.includes(userId)));
+    // Remove from email_registry
+    const registry = DB.get('email_registry') || [];
+    const userObj = users.find(u => u.id === userId);
+    if (userObj) DB.set('email_registry', registry.filter(r => r.email !== userObj.email));
+    // Remove scam reports involving them
+    const scams = DB.get('scam_reports') || [];
+    DB.set('scam_reports', scams.filter(r => r.reporterId !== userId));
+  },
+
   deleteItem: (itemId) => DB.delete('items', itemId),
   getEmailList: () => (DB.get('users') || []).map(u => u.email),
   getBannedIps: () => DB.get('banned_ips') || [],

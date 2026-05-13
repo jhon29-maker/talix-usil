@@ -12,9 +12,10 @@ export default function AdminDashboard({ onLogout }) {
   const [stats, setStats] = useState({ users: [], items: [], convos: [], totalSwaps: 0, totalCO2: '0', activeUsers: 0, bannedUsers: 0 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
-  const [banModal, setBanModal] = useState(null); // { userId, displayName }
+  const [banModal, setBanModal] = useState(null);
   const [banReason, setBanReason] = useState('');
   const [banIp, setBanIp] = useState(false);
+  const [deleteModal, setDeleteModal] = useState(null); // { userId, displayName }
 
   useEffect(() => {
     setStats(AdminService.getStats());
@@ -240,6 +241,24 @@ export default function AdminDashboard({ onLogout }) {
                 </div>
               )}
 
+              {/* Delete user confirmation modal */}
+              {deleteModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ background: '#1A2332', borderRadius: 20, width: 400, padding: 28, border: '1px solid rgba(229,57,53,0.3)' }}>
+                    <div style={{ fontSize: 36, textAlign: 'center', marginBottom: 12 }}>⚠️</div>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 8, textAlign: 'center' }}>Eliminar usuario permanentemente</div>
+                    <div style={{ fontSize: 13, color: '#888', marginBottom: 20, textAlign: 'center', lineHeight: 1.6 }}>
+                      ¿Seguro que quieres eliminar a <strong style={{ color: '#E57373' }}>{deleteModal.displayName}</strong>?<br />
+                      Se borrarán sus artículos, mensajes y toda su actividad. <strong style={{ color: '#E57373' }}>Esta acción es irreversible.</strong>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => setDeleteModal(null)} style={{ flex: 1, padding: '11px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#888', fontFamily: 'Poppins', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                      <button onClick={() => { AdminService.deleteUser(deleteModal.userId); setStats(AdminService.getStats()); setDeleteModal(null); }} style={{ flex: 1, padding: '11px', background: 'rgba(229,57,53,0.25)', border: '1px solid rgba(229,57,53,0.5)', borderRadius: 10, color: '#E57373', fontFamily: 'Poppins', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>🗑️ Eliminar todo</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div style={{ background: '#1A2332', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: 11, fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   <span>Nombre</span><span>Correo</span><span>Contraseña</span><span>Facultad</span><span>Pts</span><span>IP</span><span>Estado</span><span>Acciones</span>
@@ -267,12 +286,13 @@ export default function AdminDashboard({ onLogout }) {
                         {u.status || 'activo'}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                       {u.status !== 'baneado' ? (
-                        <button onClick={() => setBanModal({ userId: u.id, displayName: u.displayName, lastIp: u.lastIp })} style={{ padding: '5px 10px', background: 'rgba(229,57,53,0.12)', border: '1px solid rgba(229,57,53,0.25)', borderRadius: 8, color: '#E57373', fontSize: 11, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600 }}>Banear</button>
+                        <button onClick={() => setBanModal({ userId: u.id, displayName: u.displayName, lastIp: u.lastIp })} style={{ padding: '5px 8px', background: 'rgba(229,57,53,0.12)', border: '1px solid rgba(229,57,53,0.25)', borderRadius: 8, color: '#E57373', fontSize: 11, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600 }}>Banear</button>
                       ) : (
-                        <button onClick={() => { AdminService.unbanUser(u.id); setStats(AdminService.getStats()); }} style={{ padding: '5px 10px', background: 'rgba(76,175,80,0.12)', border: '1px solid rgba(76,175,80,0.25)', borderRadius: 8, color: '#4CAF50', fontSize: 11, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600 }}>Desbanear</button>
+                        <button onClick={() => { AdminService.unbanUser(u.id); setStats(AdminService.getStats()); }} style={{ padding: '5px 8px', background: 'rgba(76,175,80,0.12)', border: '1px solid rgba(76,175,80,0.25)', borderRadius: 8, color: '#4CAF50', fontSize: 11, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600 }}>Desbanear</button>
                       )}
+                      <button onClick={() => setDeleteModal({ userId: u.id, displayName: u.displayName })} style={{ padding: '5px 8px', background: 'rgba(180,0,0,0.18)', border: '1px solid rgba(180,0,0,0.4)', borderRadius: 8, color: '#FF5252', fontSize: 11, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700 }}>🗑️</button>
                     </div>
                   </div>
                 ))}
