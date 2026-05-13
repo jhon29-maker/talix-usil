@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ItemsService } from '../services/items';
-import { TTopBar, TButton, TItemCard, NotificationBell } from '../components/ui';
+import { TTopBar, TButton, TItemCard, NotificationBell, categoryEmoji } from '../components/ui';
 import EcoSpotsModal from './EcoSpotsModal';
 
 const CATS = ['Todos', 'Libros', 'Tecnología', 'Ropa', 'Accesorios'];
@@ -41,6 +41,40 @@ export default function FeedPage({ setPage, setSelectedItem, setPublicUser, curr
           </div>
         }
       />
+      {/* Auto-scrolling carousel */}
+      {items.length > 0 && (
+        <div style={{ overflow: 'hidden', borderBottom: '1px solid #EEF2EE', background: '#fff', paddingBottom: 0 }}>
+          <style>{`
+            @keyframes taliScroll {
+              0%   { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+            }
+          `}</style>
+          <div style={{ display: 'flex', gap: 0, animation: 'taliScroll 40s linear infinite', width: 'max-content' }}>
+            {[...items, ...items].map((item, idx) => (
+              <div
+                key={`${item.id}-${idx}`}
+                onClick={() => { setSelectedItem(item); setPage('detail'); }}
+                style={{ width: 140, flexShrink: 0, cursor: 'pointer', padding: '12px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, borderRight: '1px solid #F0F4F0', transition: 'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#F8FFF8'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <div style={{ width: 72, height: 72, borderRadius: 14, background: item.bgColor || '#F4F6F0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, overflow: 'hidden', flexShrink: 0 }}>
+                  {item.photo
+                    ? <img src={item.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : categoryEmoji(item.category)
+                  }
+                </div>
+                <div style={{ textAlign: 'center', width: '100%' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1C2B2B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</div>
+                  <div style={{ fontSize: 10, color: theme.primary, marginTop: 2, fontWeight: 600 }}>{item.category}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ padding: '24px 32px' }}>
         {/* Search */}
         <div style={{ position: 'relative', marginBottom: 20 }}>

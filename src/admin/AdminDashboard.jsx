@@ -241,13 +241,13 @@ export default function AdminDashboard({ onLogout }) {
               )}
 
               <div style={{ background: '#1A2332', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: 11, fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  <span>Nombre</span><span>Correo</span><span>Facultad</span><span>Pts</span><span>IP</span><span>Estado</span><span>Acciones</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: 11, fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <span>Nombre</span><span>Correo</span><span>Contraseña</span><span>Facultad</span><span>Pts</span><span>IP</span><span>Estado</span><span>Acciones</span>
                 </div>
                 {filteredUsers.length === 0 ? (
                   <div style={{ padding: '32px', textAlign: 'center', color: '#444', fontSize: 13 }}>No se encontraron usuarios</div>
                 ) : filteredUsers.map((u, i) => (
-                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', padding: '14px 20px', borderBottom: i < filteredUsers.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', alignItems: 'center' }}>
+                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', padding: '14px 20px', borderBottom: i < filteredUsers.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: u.avatarColor || '#2A3444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                         {(u.displayName || 'U').split(' ').map(w => w[0]).join('').slice(0, 2)}
@@ -258,6 +258,7 @@ export default function AdminDashboard({ onLogout }) {
                       </div>
                     </div>
                     <div style={{ fontSize: 11, color: '#666', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
+                    <div style={{ fontSize: 11, color: '#6DBE7E', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u._pwd || '••••••'}</div>
                     <div style={{ fontSize: 12, color: '#777' }}>{u.faculty || '—'}</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#F5A623' }}>{u.points || u.swaps || 0}</div>
                     <div style={{ fontSize: 10, color: '#555', fontFamily: 'monospace' }}>{u.lastIp || '—'}</div>
