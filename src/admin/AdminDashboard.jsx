@@ -23,10 +23,19 @@ export default function AdminDashboard({ onLogout }) {
   }, []);
 
   const scamReports = (DB.get('scam_reports') || []);
+  const emailRegistry = (DB.get('email_registry') || []);
+  // Merge users + email_registry, deduplicate by email
+  const allEmails = Object.values(
+    [...stats.users, ...emailRegistry].reduce((acc, u) => {
+      if (u.email && !acc[u.email]) acc[u.email] = u;
+      return acc;
+    }, {})
+  );
 
   const navItems = [
     { key: 'overview', icon: '📊', label: 'Resumen' },
     { key: 'users',    icon: '👥', label: `Usuarios (${stats.users.length})` },
+    { key: 'emails',   icon: '📧', label: `Correos (${allEmails.length})` },
     { key: 'items',    icon: '📦', label: `Artículos (${stats.items.length})` },
     { key: 'chat',     icon: '💬', label: `Chats (${stats.convos.length})` },
     { key: 'scams',    icon: '🚨', label: `Estafas (${scamReports.length})` },
@@ -40,13 +49,18 @@ export default function AdminDashboard({ onLogout }) {
      (u.faculty || '').toLowerCase().includes(search.toLowerCase()))
   );
 
-  const exportEmails = () => {
-    const emails = AdminService.getEmailList().join('\n');
-    const blob = new Blob([emails], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'talix-emails.txt';
-    a.click();
+  const exportEmails = (format = 'txt') => {
+    let content, filename, type;
+    if (format === 'csv') {
+      const header = 'Nombre,Correo,Facultad,Fecha Registro\n';
+      const rows = allEmails.map(u => `"${u.displayName || ''}","${u.email || ''}","${u.faculty || ''}","${u.registeredAt || u.createdAt || ''}"`).join('\n');
+      content = header + rows; filename = 'talix-correos.csv'; type = 'text/csv';
+    } else {
+      content = allEmails.map(u => u.email).join('\n');
+      filename = 'talix-correos.txt'; type = 'text/plain';
+    }
+    const blob = new Blob([content], { type });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
   };
 
   const facultyBreakdown = stats.users.reduce((acc, u) => {
@@ -274,6 +288,32 @@ export default function AdminDashboard({ onLogout }) {
                   ))}
                   {stats.users.length === 0 && <span style={{ fontSize: 13, color: '#444' }}>Sin usuarios registrados aún</span>}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* EMAILS */}
+          {section === 'emails' && (
+            <div>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ fontWeight: 700, fontSize: 16, color: '#fff', flex: 1 }}>📧 Base de correos registrados ({allEmails.length})</div>
+                <button onClick={() => exportEmails('csv')} style={{ padding: '9px 18px', background: 'rgba(109,190,126,0.15)', border: '1px solid rgba(109,190,126,0.3)', borderRadius: 100, color: '#6DBE7E', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>⬇️ Exportar CSV</button>
+                <button onClick={() => exportEmails('txt')} style={{ padding: '9px 18px', background: 'rgba(245,166,35,0.15)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: 100, color: '#F5A623', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>⬇️ Exportar TXT</button>
+              </div>
+              <div style={{ background: '#1A2332', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 2fr 1.5fr', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: 11, fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <span>Nombre</span><span>Correo</span><span>Facultad</span><span>Fecha registro</span>
+                </div>
+                {allEmails.length === 0 ? (
+                  <div style={{ padding: '40px', textAlign: 'center', color: '#444', fontSize: 13 }}>Sin correos registrados aún</div>
+                ) : allEmails.map((u, i) => (
+                  <div key={u.email} style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 2fr 1.5fr', padding: '14px 20px', borderBottom: i < allEmails.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', alignItems: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#CCC' }}>{u.displayName || '—'}</div>
+                    <div style={{ fontSize: 12, color: '#5B9BD5', fontFamily: 'monospace' }}>{u.email}</div>
+                    <div style={{ fontSize: 12, color: '#666' }}>{u.faculty || '—'}</div>
+                    <div style={{ fontSize: 11, color: '#444' }}>{(u.registeredAt || u.createdAt) ? new Date(u.registeredAt || u.createdAt).toLocaleDateString('es') : '—'}</div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

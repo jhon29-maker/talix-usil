@@ -12,6 +12,11 @@ import { DB } from './db';
 const AVATAR_COLORS = ['#6DBE7E', '#5B9BD5', '#F5A623', '#9C6BBE', '#E57373', '#4DB6AC'];
 const randomColor = () => AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 
+// Simple non-crypto hash for localStorage demo mode (Firebase handles real auth)
+function hashPwd(s) {
+  return [...s].reduce((h, c) => (Math.imul(31, h) + c.charCodeAt(0)) | 0, 0).toString(36);
+}
+
 function buildUserProfile(uid, email, displayName, faculty, termsAcceptedAt = null) {
   return {
     id: uid,
@@ -86,6 +91,7 @@ export const Auth = {
     const users = DB.get('users') || [];
     if (users.find(u => u.email === email)) throw new Error('Este correo ya está registrado.');
     const profile = buildUserProfile(Date.now().toString(), email, displayName, faculty, acceptedAt);
+    profile._ph = hashPwd(password);
     DB.push('users', profile);
     await saveEmailRegistry(email, displayName, faculty);
     localStorage.setItem('talix_current_user', JSON.stringify(profile));
@@ -115,14 +121,11 @@ export const Auth = {
 
     // localStorage fallback
     const users = DB.get('users') || [];
-    let user = users.find(u => u.email === email);
-    if (!user) {
-      user = buildUserProfile('demo_' + Date.now(), email, email.split('@')[0], 'Ingeniería Industrial');
-      user.swaps = 5;
-      user.co2 = 12.5;
-      const all = DB.get('users') || [];
-      all.unshift(user);
-      DB.set('users', all);
+    const user = users.find(u => u.email === email);
+    if (!user) throw new Error('Correo no registrado. Por favor regístrate primero.');
+    // Validate password
+    if (user._ph && user._ph !== hashPwd(password)) {
+      throw new Error('Contraseña incorrecta.');
     }
     if (user.status === 'baneado') throw new Error('Tu cuenta ha sido suspendida por el administrador.');
     // Check IP ban

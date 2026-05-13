@@ -16,6 +16,7 @@ import DashboardPage from './screens/DashboardPage';
 import ProfilePage from './screens/ProfilePage';
 import PublicProfilePage from './screens/PublicProfilePage';
 import PointsPage from './screens/PointsPage';
+import ElitePage from './screens/ElitePage';
 
 import AdminLoginPage from './admin/AdminLoginPage';
 import AdminDashboard from './admin/AdminDashboard';
@@ -121,6 +122,7 @@ function App() {
       case 'chat':          return <ChatPage {...screenProps} />;
       case 'dashboard':     return <DashboardPage {...screenProps} />;
       case 'points':        return <PointsPage {...screenProps} />;
+      case 'elite':         return <ElitePage {...screenProps} setSelectedItem={setSelectedItem} />;
       case 'profile':       return <ProfilePage {...screenProps} />;
       case 'publicprofile': return <PublicProfilePage {...screenProps} userId={publicUser} />;
       default:              return <FeedPage {...screenProps} setSelectedItem={setSelectedItem} setPublicUser={setPublicUser} />;
