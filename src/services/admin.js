@@ -14,10 +14,34 @@ export const AdminService = {
       totalSwaps,
       totalCO2: totalCO2.toFixed(1),
       activeUsers: users.filter(u => u.status === 'activo').length,
+      bannedUsers: users.filter(u => u.status === 'baneado').length,
     };
   },
   getAllUsers: () => DB.get('users') || [],
-  banUser: (userId) => DB.update('users', userId, { status: 'baneado' }),
+
+  banUser: (userId, reason = 'Incumplimiento de normas', banIp = false) => {
+    const users = DB.get('users') || [];
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    DB.update('users', userId, {
+      status: 'baneado',
+      banReason: reason,
+      bannedAt: new Date().toISOString(),
+    });
+    if (banIp && user.lastIp) {
+      const bannedIps = DB.get('banned_ips') || [];
+      if (!bannedIps.includes(user.lastIp)) {
+        bannedIps.push(user.lastIp);
+        DB.set('banned_ips', bannedIps);
+      }
+    }
+  },
+
+  unbanUser: (userId) => {
+    DB.update('users', userId, { status: 'activo', banReason: null, bannedAt: null });
+  },
+
   deleteItem: (itemId) => DB.delete('items', itemId),
   getEmailList: () => (DB.get('users') || []).map(u => u.email),
+  getBannedIps: () => DB.get('banned_ips') || [],
 };

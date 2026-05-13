@@ -93,14 +93,24 @@ export const Auth = {
   },
 
   login: async (email, password) => {
+    // Fetch IP silently
+    let ip = null;
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      ip = data.ip;
+    } catch {}
+
     if (FIREBASE_READY) {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const snap = await getDoc(doc(db, 'users', cred.user.uid));
       const profile = snap.exists()
         ? snap.data()
         : buildUserProfile(cred.user.uid, email, cred.user.displayName || email.split('@')[0], '');
-      localStorage.setItem('talix_current_user', JSON.stringify(profile));
-      return profile;
+      if (profile.status === 'baneado') throw new Error('Tu cuenta ha sido suspendida por el administrador.');
+      const updated = { ...profile, lastIp: ip, lastLogin: new Date().toISOString() };
+      localStorage.setItem('talix_current_user', JSON.stringify(updated));
+      return updated;
     }
 
     // localStorage fallback
@@ -113,6 +123,17 @@ export const Auth = {
       const all = DB.get('users') || [];
       all.unshift(user);
       DB.set('users', all);
+    }
+    if (user.status === 'baneado') throw new Error('Tu cuenta ha sido suspendida por el administrador.');
+    // Check IP ban
+    const bannedIps = DB.get('banned_ips') || [];
+    if (ip && bannedIps.includes(ip)) throw new Error('Tu acceso ha sido restringido.');
+    // Save IP to user
+    const userIdx = users.findIndex(u => u.id === user.id);
+    if (userIdx >= 0) {
+      users[userIdx] = { ...users[userIdx], lastIp: ip, lastLogin: new Date().toISOString() };
+      DB.set('users', users);
+      user = users[userIdx];
     }
     localStorage.setItem('talix_current_user', JSON.stringify(user));
     return user;

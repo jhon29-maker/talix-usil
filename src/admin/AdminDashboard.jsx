@@ -8,9 +8,12 @@ const STATUS_BG    = { activo: '#E8F5E9', inactivo: '#F5F5F5', pendiente: '#FFF3
 
 export default function AdminDashboard({ onLogout }) {
   const [section, setSection] = useState('overview');
-  const [stats, setStats] = useState({ users: [], items: [], convos: [], totalSwaps: 0, totalCO2: '0', activeUsers: 0 });
+  const [stats, setStats] = useState({ users: [], items: [], convos: [], totalSwaps: 0, totalCO2: '0', activeUsers: 0, bannedUsers: 0 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
+  const [banModal, setBanModal] = useState(null); // { userId, displayName }
+  const [banReason, setBanReason] = useState('');
+  const [banIp, setBanIp] = useState(false);
 
   useEffect(() => {
     setStats(AdminService.getStats());
@@ -194,34 +197,62 @@ export default function AdminDashboard({ onLogout }) {
                 ))}
                 <button onClick={exportEmails} style={{ padding: '9px 18px', background: 'rgba(245,166,35,0.15)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: 100, color: '#F5A623', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>📧 Exportar correos</button>
               </div>
+              {/* Ban modal */}
+              {banModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ background: '#1A2332', borderRadius: 20, width: 420, padding: 28, border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>🚫 Banear usuario</div>
+                    <div style={{ fontSize: 13, color: '#888', marginBottom: 18 }}>Usuario: <strong style={{ color: '#E57373' }}>{banModal.displayName}</strong></div>
+                    <label style={{ fontSize: 12, color: '#888', display: 'block', marginBottom: 6 }}>Razón del baneo</label>
+                    <input
+                      value={banReason}
+                      onChange={e => setBanReason(e.target.value)}
+                      placeholder="Ej: Contenido inapropiado, múltiples incidencias..."
+                      style={{ width: '100%', padding: '10px 14px', background: '#0F1923', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontFamily: 'Poppins', fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }}
+                    />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#E57373', marginBottom: 20 }}>
+                      <input type="checkbox" checked={banIp} onChange={e => setBanIp(e.target.checked)} style={{ accentColor: '#E57373' }} />
+                      También banear IP ({banModal.lastIp || 'IP no registrada'})
+                    </label>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => { setBanModal(null); setBanReason(''); setBanIp(false); }} style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#888', fontFamily: 'Poppins', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                      <button onClick={() => { AdminService.banUser(banModal.userId, banReason || 'Incumplimiento de normas', banIp); setStats(AdminService.getStats()); setBanModal(null); setBanReason(''); setBanIp(false); }} style={{ flex: 1, padding: '10px', background: 'rgba(229,57,53,0.2)', border: '1px solid rgba(229,57,53,0.4)', borderRadius: 10, color: '#E57373', fontFamily: 'Poppins', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Confirmar baneo</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div style={{ background: '#1A2332', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 1.5fr 0.8fr 1fr 1fr', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: 11, fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  <span>Nombre</span><span>Correo</span><span>Facultad</span><span>Trueques</span><span>Estado</span><span>Acciones</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: 11, fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <span>Nombre</span><span>Correo</span><span>Facultad</span><span>Pts</span><span>IP</span><span>Estado</span><span>Acciones</span>
                 </div>
                 {filteredUsers.length === 0 ? (
                   <div style={{ padding: '32px', textAlign: 'center', color: '#444', fontSize: 13 }}>No se encontraron usuarios</div>
                 ) : filteredUsers.map((u, i) => (
-                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 1.5fr 0.8fr 1fr 1fr', padding: '14px 20px', borderBottom: i < filteredUsers.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', alignItems: 'center' }}>
+                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', padding: '14px 20px', borderBottom: i < filteredUsers.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: u.avatarColor || '#2A3444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                         {(u.displayName || 'U').split(' ').map(w => w[0]).join('').slice(0, 2)}
                       </div>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{u.displayName || 'Usuario'}</div>
-                        <div style={{ fontSize: 11, color: '#444' }}>Desde {u.joined || '2025'}</div>
+                        {u.status === 'baneado' && u.banReason && <div style={{ fontSize: 10, color: '#E57373' }}>🚫 {u.banReason}</div>}
                       </div>
                     </div>
-                    <div style={{ fontSize: 12, color: '#666', fontFamily: 'monospace' }}>{u.email}</div>
+                    <div style={{ fontSize: 11, color: '#666', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
                     <div style={{ fontSize: 12, color: '#777' }}>{u.faculty || '—'}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F5A623' }}>{u.swaps || 0}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F5A623' }}>{u.points || u.swaps || 0}</div>
+                    <div style={{ fontSize: 10, color: '#555', fontFamily: 'monospace' }}>{u.lastIp || '—'}</div>
                     <div>
                       <span style={{ background: STATUS_BG[u.status || 'activo'] || '#E8F5E9', color: STATUS_COLOR[u.status || 'activo'] || '#4CAF50', padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600 }}>
                         {u.status || 'activo'}
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      {u.status !== 'baneado' && (
-                        <button onClick={() => { AdminService.banUser(u.id); setStats(AdminService.getStats()); }} style={{ padding: '5px 10px', background: 'rgba(229,57,53,0.12)', border: '1px solid rgba(229,57,53,0.25)', borderRadius: 8, color: '#E57373', fontSize: 11, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600 }}>Banear</button>
+                      {u.status !== 'baneado' ? (
+                        <button onClick={() => setBanModal({ userId: u.id, displayName: u.displayName, lastIp: u.lastIp })} style={{ padding: '5px 10px', background: 'rgba(229,57,53,0.12)', border: '1px solid rgba(229,57,53,0.25)', borderRadius: 8, color: '#E57373', fontSize: 11, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600 }}>Banear</button>
+                      ) : (
+                        <button onClick={() => { AdminService.unbanUser(u.id); setStats(AdminService.getStats()); }} style={{ padding: '5px 10px', background: 'rgba(76,175,80,0.12)', border: '1px solid rgba(76,175,80,0.25)', borderRadius: 8, color: '#4CAF50', fontSize: 11, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600 }}>Desbanear</button>
                       )}
                     </div>
                   </div>

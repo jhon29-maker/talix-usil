@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { DB } from '../services/db';
 import { ChatService } from '../services/chat';
+import { ModerationService } from '../services/moderation';
 import { TAvatar, TButton } from '../components/ui';
+import TradeCompleteModal from './TradeCompleteModal';
 
 const QUICK = ['¿Cuándo puedes?', '¿Dónde nos vemos?', '¡Me interesa! 🙌', '¿Está disponible aún?'];
 const ECO_SPOTS = ['Biblioteca Central USIL', 'Cafetería Principal', 'Entrada Principal', 'Sala de Estudio B2', 'Patio Central', 'Terraza USIL', 'Edificio F – Lobby'];
@@ -27,15 +29,19 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const [showNewChat, setShowNewChat] = useState(false);
   const [newChatUser, setNewChatUser] = useState('');
   const [newChatTopic, setNewChatTopic] = useState('');
+  const [blockedMsg, setBlockedMsg] = useState('');
+  const [showTradeComplete, setShowTradeComplete] = useState(false);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const activeConvRef = useRef(null);
+
+  useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
 
   useEffect(() => {
     if (!currentUser) return;
-    return DB.subscribe('conversations', (all) => {
-      const sorted = (all || []).sort((a, b) => new Date(b.lastTime || 0) - new Date(a.lastTime || 0));
+    return ChatService.getConversations(currentUser.id, (sorted) => {
       setConvos(sorted);
-      if (!activeConv && sorted.length > 0) setActiveConv(sorted[0]);
+      if (!activeConvRef.current && sorted.length > 0) setActiveConv(sorted[0]);
     });
   }, [currentUser]);
 
@@ -53,6 +59,12 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
   const send = () => {
     if (!input.trim() || !activeConv) return;
+    const mod = ModerationService.checkText(input);
+    if (!mod.ok) {
+      setBlockedMsg('Tu mensaje contiene lenguaje inapropiado y no puede ser enviado. 🚫');
+      setTimeout(() => setBlockedMsg(''), 3500);
+      return;
+    }
     ChatService.sendMessage(activeConv.id, currentUser, input, activeConv.participants || [currentUser.id], activeConv.itemTitle);
     setInput('');
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -128,6 +140,15 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      {showTradeComplete && activeConv && (
+        <TradeCompleteModal
+          conv={activeConv}
+          currentUser={currentUser}
+          theme={theme}
+          showToast={showToast}
+          onClose={() => { setShowTradeComplete(false); showToast('¡Trueque completado! +10 puntos 🏆', 'success'); }}
+        />
+      )}
       {/* New chat modal */}
       {showNewChat && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 6000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -267,6 +288,14 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                 📅 {new Date(activeConv.meetup.dateTime).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}
               </div>
             )}
+            {activeConv.meetup && (
+              <button
+                onClick={() => setShowTradeComplete(true)}
+                style={{ background: '#E8F5E9', color: '#2E7D32', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
+              >
+                ✅ Completar trueque
+              </button>
+            )}
             <button
               onClick={() => setShowCoord(!showCoord)}
               style={{ background: showCoord ? theme.primary : '#F4F6F0', color: showCoord ? '#fff' : '#555', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, transition: 'all 0.2s', flexShrink: 0 }}
@@ -341,6 +370,12 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             })}
             <div ref={bottomRef} style={{ height: 1 }} />
           </div>
+
+          {blockedMsg && (
+            <div style={{ margin: '0 22px 4px', background: '#FFEBEE', border: '1px solid #FFCDD2', borderRadius: 10, padding: '8px 14px', fontSize: 12, color: '#C62828', flexShrink: 0 }}>
+              {blockedMsg}
+            </div>
+          )}
 
           {/* Quick replies */}
           <div style={{ padding: '8px 22px 4px', background: '#F9FAF8', display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { ItemsService } from '../services/items';
+import { ModerationService } from '../services/moderation';
 import { TTopBar, TInput, TButton } from '../components/ui';
 
 const CO2_EST = { Libros: 2.4, Tecnología: 12.5, Ropa: 5.0, Accesorios: 3.5 };
@@ -8,6 +9,7 @@ export default function PostPage({ setPage, currentUser, theme, showToast }) {
   const [form, setForm] = useState({ title: '', cat: 'Libros', condition: 'Buen estado', want: '', desc: '' });
   const [photo, setPhoto] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [checkingImage, setCheckingImage] = useState(false);
   const fileRef = useRef(null);
   const co2Est = CO2_EST[form.cat] || 3;
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -17,7 +19,19 @@ export default function PostPage({ setPage, currentUser, theme, showToast }) {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { showToast('La imagen debe pesar menos de 5MB', 'error'); return; }
     const reader = new FileReader();
-    reader.onload = ev => setPhoto(ev.target.result);
+    reader.onload = async ev => {
+      const dataUrl = ev.target.result;
+      setCheckingImage(true);
+      showToast('🔍 Verificando imagen...', 'success');
+      const result = await ModerationService.checkImage(dataUrl);
+      setCheckingImage(false);
+      if (!result.ok) {
+        showToast('🚫 Imagen no permitida. Solo se aceptan fotos de artículos.', 'error');
+        fileRef.current.value = '';
+        return;
+      }
+      setPhoto(dataUrl);
+    };
     reader.readAsDataURL(file);
   };
 
@@ -118,7 +132,7 @@ export default function PostPage({ setPage, currentUser, theme, showToast }) {
           onClick={handleSubmit}
           theme={theme}
           style={{ padding: '14px 40px', fontSize: 15 }}
-          disabled={loading || !form.title || !form.desc || !form.want}
+          disabled={loading || checkingImage || !form.title || !form.desc || !form.want}
         >
           {loading ? '⏳ Publicando...' : 'Publicar artículo'}
         </TButton>
