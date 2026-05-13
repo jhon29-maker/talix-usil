@@ -8,4 +8,5 @@ export const TWEAK_DEFAULTS = {
   theme: 'verde',
   density: 'normal',
   cardStyle: 'redondeado',
+  _v: 3,
 };

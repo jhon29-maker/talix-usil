@@ -5,6 +5,7 @@ const NAV = [
   { key: 'post',      icon: '➕', label: 'Publicar' },
   { key: 'chat',      icon: '💬', label: 'Mensajes' },
   { key: 'dashboard', icon: '🌿', label: 'Impacto CO₂' },
+  { key: 'points',    icon: '🏆', label: 'Puntos' },
   { key: 'profile',   icon: '👤', label: 'Mi Perfil' },
 ];
 

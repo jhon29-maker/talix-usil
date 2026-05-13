@@ -15,6 +15,7 @@ import ChatPage from './screens/ChatPage';
 import DashboardPage from './screens/DashboardPage';
 import ProfilePage from './screens/ProfilePage';
 import PublicProfilePage from './screens/PublicProfilePage';
+import PointsPage from './screens/PointsPage';
 
 import AdminLoginPage from './admin/AdminLoginPage';
 import AdminDashboard from './admin/AdminDashboard';
@@ -34,11 +35,14 @@ function App() {
   const [tweaksVisible, setTweaksVisible] = useState(false);
   const [toast, setToast] = useState(null);
   const [tweaks, setTweaks] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('talix_tweaks') || 'null') || TWEAK_DEFAULTS; }
-    catch { return TWEAK_DEFAULTS; }
+    try {
+      const stored = JSON.parse(localStorage.getItem('talix_tweaks') || 'null');
+      if (!stored || stored._v !== TWEAK_DEFAULTS._v) return TWEAK_DEFAULTS;
+      return stored;
+    } catch { return TWEAK_DEFAULTS; }
   });
 
-  const theme = THEMES[tweaks.theme] || THEMES.azul;
+  const theme = THEMES[tweaks.theme] || THEMES.verde;
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -116,6 +120,7 @@ function App() {
       case 'post':          return <PostPage {...screenProps} />;
       case 'chat':          return <ChatPage {...screenProps} />;
       case 'dashboard':     return <DashboardPage {...screenProps} />;
+      case 'points':        return <PointsPage {...screenProps} />;
       case 'profile':       return <ProfilePage {...screenProps} />;
       case 'publicprofile': return <PublicProfilePage {...screenProps} userId={publicUser} />;
       default:              return <FeedPage {...screenProps} setSelectedItem={setSelectedItem} setPublicUser={setPublicUser} />;

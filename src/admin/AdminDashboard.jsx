@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AdminService } from '../services/admin';
 import { PDFReportService } from '../services/pdfReport';
 import { categoryEmoji } from '../components/ui';
+import { DB } from '../services/db';
 
 const STATUS_COLOR = { activo: '#4CAF50', inactivo: '#999', pendiente: '#F5A623', baneado: '#E53935' };
 const STATUS_BG    = { activo: '#E8F5E9', inactivo: '#F5F5F5', pendiente: '#FFF3E0', baneado: '#FFEBEE' };
@@ -21,11 +22,14 @@ export default function AdminDashboard({ onLogout }) {
     return () => clearInterval(interval);
   }, []);
 
+  const scamReports = (DB.get('scam_reports') || []);
+
   const navItems = [
     { key: 'overview', icon: '📊', label: 'Resumen' },
     { key: 'users',    icon: '👥', label: `Usuarios (${stats.users.length})` },
     { key: 'items',    icon: '📦', label: `Artículos (${stats.items.length})` },
     { key: 'chat',     icon: '💬', label: `Chats (${stats.convos.length})` },
+    { key: 'scams',    icon: '🚨', label: `Estafas (${scamReports.length})` },
     { key: 'reports',  icon: '📈', label: 'Reportes' },
   ];
 
@@ -318,6 +322,36 @@ export default function AdminDashboard({ onLogout }) {
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: 11, color: '#F5A623', fontWeight: 600 }}>{c.unread || 0} sin leer</div>
                     <div style={{ fontSize: 11, color: '#444' }}>{c.lastTime ? new Date(c.lastTime).toLocaleDateString('es') : ''}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* SCAM REPORTS */}
+          {section === 'scams' && (
+            <div style={{ background: '#1A2332', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontWeight: 700, fontSize: 15, color: '#fff' }}>
+                🚨 Reportes de estafa ({scamReports.length})
+              </div>
+              {scamReports.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#444', fontSize: 13 }}>Sin reportes de estafa</div>
+              ) : scamReports.map((r, i) => (
+                <div key={r.id} style={{ padding: '18px 20px', borderBottom: i < scamReports.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                    <div style={{ fontSize: 32, flexShrink: 0 }}>🚨</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#E57373' }}>Reporte de {r.reporterName}</div>
+                        <div style={{ fontSize: 11, color: '#444' }}>{r.date ? new Date(r.date).toLocaleDateString('es') : ''}</div>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>📦 Artículo: {r.itemTitle || 'No especificado'}</div>
+                      <div style={{ fontSize: 13, color: '#CCC', lineHeight: 1.5, marginBottom: 8 }}>"{r.description}"</div>
+                      {r.photo && <img src={r.photo} alt="evidencia" style={{ width: 120, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }} />}
+                    </div>
+                    <span style={{ background: r.status === 'pendiente' ? 'rgba(245,166,35,0.15)' : 'rgba(76,175,80,0.15)', color: r.status === 'pendiente' ? '#F5A623' : '#4CAF50', padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
+                      {r.status}
+                    </span>
                   </div>
                 </div>
               ))}

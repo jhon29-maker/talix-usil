@@ -336,6 +336,12 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             </div>
           )}
 
+          {/* Safety banner */}
+          <div style={{ background: '#FFF8E1', borderBottom: '1px solid #FFE082', padding: '7px 22px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 14 }}>🔒</span>
+            <span style={{ fontSize: 11, color: '#795548', fontWeight: 500 }}>Por tu seguridad, <strong>no compartas números de teléfono</strong> ni coordines fuera de TALIX. Todos los intercambios deben realizarse en los Eco-Spots del campus.</span>
+          </div>
+
           {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {msgs.length === 0 && (
