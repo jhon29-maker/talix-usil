@@ -5,7 +5,7 @@ import {
   updateProfile,
   sendEmailVerification,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, addDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection, addDoc } from 'firebase/firestore';
 import { FIREBASE_READY, auth, db } from '../config/firebase';
 import { DB } from './db';
 
@@ -83,6 +83,8 @@ export const Auth = {
           handleCodeInApp: false,
         }),
       ]);
+      // Cache profile locally so admin panel can find this user
+      DB.push('users', profile);
       localStorage.setItem('talix_current_user', JSON.stringify(profile));
       return profile;
     }
@@ -116,6 +118,12 @@ export const Auth = {
         : buildUserProfile(cred.user.uid, email, cred.user.displayName || email.split('@')[0], '');
       if (profile.status === 'baneado') throw new Error('Tu cuenta ha sido suspendida por el administrador.');
       const updated = { ...profile, lastIp: ip, lastLogin: new Date().toISOString() };
+      // Sync ALL Firestore users to localStorage so admin panel sees everyone
+      try {
+        const allSnap = await getDocs(collection(db, 'users'));
+        const allUsers = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        DB.set('users', allUsers);
+      } catch (_) {}
       localStorage.setItem('talix_current_user', JSON.stringify(updated));
       return updated;
     }
