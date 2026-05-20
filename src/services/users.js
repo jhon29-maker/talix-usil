@@ -1,5 +1,5 @@
 import { FIREBASE_READY, db, auth } from '../config/firebase';
-import { collection, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { DB } from './db';
 
@@ -9,38 +9,42 @@ export const UsersService = {
       return DB.subscribe('users', callback);
     }
 
-    let firestoreUnsub = () => {};
+    let stopped = false;
+    let timer = null;
 
-    // Wait for Firebase Auth to confirm session before querying Firestore
-    const authUnsub = onAuthStateChanged(auth, (user) => {
-      firestoreUnsub(); // cancel any previous subscription
-      if (user) {
-        // User authenticated — subscribe to all users in real-time
-        firestoreUnsub = onSnapshot(
-          collection(db, 'users'),
-          (snap) => {
-            const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            DB.set('users', users); // keep localStorage cache in sync
-            callback(users);
-          },
-          async (err) => {
-            console.warn('Firestore users read blocked:', err.code);
-            // Firestore rules blocking — try one-shot read, then fall back to cache
-            try {
-              const snap = await getDocs(collection(db, 'users'));
-              const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-              DB.set('users', users);
-              callback(users);
-            } catch (_) {
-              callback(DB.get('users') || []);
-            }
-          }
-        );
-      } else {
+    const fetchUsers = async () => {
+      if (stopped) return;
+      if (!auth.currentUser) {
+        // Not authenticated yet — use localStorage cache
+        callback(DB.get('users') || []);
+        return;
+      }
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (users.length > 0) {
+          DB.set('users', users); // keep cache fresh
+          callback(users);
+        } else {
+          callback(DB.get('users') || []);
+        }
+      } catch (_) {
         callback(DB.get('users') || []);
       }
+      // Schedule next refresh
+      if (!stopped) timer = setTimeout(fetchUsers, 5000);
+    };
+
+    // Start as soon as auth is confirmed
+    const authUnsub = onAuthStateChanged(auth, (user) => {
+      if (timer) clearTimeout(timer);
+      fetchUsers();
     });
 
-    return () => { authUnsub(); firestoreUnsub(); };
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      authUnsub();
+    };
   },
 };
