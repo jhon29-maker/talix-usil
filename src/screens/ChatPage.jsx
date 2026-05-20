@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { DB } from '../services/db';
+import { UsersService } from '../services/users';
 import { ChatService } from '../services/chat';
 import { ModerationService } from '../services/moderation';
 import { TAvatar, TButton } from '../components/ui';
@@ -28,6 +29,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const [search, setSearch] = useState('');
   const [showNewChat, setShowNewChat] = useState(false);
   const [newChatUser, setNewChatUser] = useState('');
+  const [allUsersList, setAllUsersList] = useState([]);
   const [newChatTopic, setNewChatTopic] = useState('');
   const [blockedMsg, setBlockedMsg] = useState('');
   const [showTradeComplete, setShowTradeComplete] = useState(false);
@@ -36,6 +38,10 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const activeConvRef = useRef(null);
 
   useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
+
+  useEffect(() => {
+    return UsersService.subscribe(setAllUsersList);
+  }, []);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -111,7 +117,6 @@ export default function ChatPage({ currentUser, theme, showToast }) {
     showToast('¡Conversación creada!', 'success');
   };
 
-  const allUsersList = DB.get('users') || [];
   const filteredUsers = allUsersList.filter(u =>
     u.id !== currentUser?.id &&
     (u.displayName || '').toLowerCase().includes(newChatUser.toLowerCase())

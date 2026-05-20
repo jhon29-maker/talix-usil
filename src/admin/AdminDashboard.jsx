@@ -3,6 +3,7 @@ import { AdminService } from '../services/admin';
 import { PDFReportService } from '../services/pdfReport';
 import { categoryEmoji } from '../components/ui';
 import { DB } from '../services/db';
+import { UsersService } from '../services/users';
 
 const STATUS_COLOR = { activo: '#4CAF50', inactivo: '#999', pendiente: '#F5A623', baneado: '#E53935' };
 const STATUS_BG    = { activo: '#E8F5E9', inactivo: '#F5F5F5', pendiente: '#FFF3E0', baneado: '#FFEBEE' };
@@ -18,9 +19,28 @@ export default function AdminDashboard({ onLogout }) {
   const [deleteModal, setDeleteModal] = useState(null); // { userId, displayName }
 
   useEffect(() => {
-    setStats(AdminService.getStats());
-    const interval = setInterval(() => setStats(AdminService.getStats()), 2000);
-    return () => clearInterval(interval);
+    // Subscribe to users in real-time (Firestore or localStorage)
+    const unsub = UsersService.subscribe(users => {
+      setStats(prev => {
+        const base = AdminService.getStats();
+        return {
+          ...base,
+          users,
+          activeUsers: users.filter(u => u.status === 'activo' || !u.status).length,
+          bannedUsers: users.filter(u => u.status === 'baneado').length,
+          totalSwaps: users.reduce((s, u) => s + (u.swaps || 0), 0),
+          totalCO2: users.reduce((s, u) => s + (u.co2 || 0), 0).toFixed(1),
+        };
+      });
+    });
+    // Still poll items/convos from localStorage every 2s
+    const interval = setInterval(() => {
+      setStats(prev => {
+        const base = AdminService.getStats();
+        return { ...prev, items: base.items, convos: base.convos };
+      });
+    }, 2000);
+    return () => { unsub(); clearInterval(interval); };
   }, []);
 
   const scamReports = (DB.get('scam_reports') || []);
