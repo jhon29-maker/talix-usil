@@ -35,6 +35,8 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const [blockedMsg, setBlockedMsg] = useState('');
   const [showTradeComplete, setShowTradeComplete] = useState(false);
   const bottomRef = useRef(null);
+  const msgsContainerRef = useRef(null);
+  const isAtBottomRef = useRef(true);
   const inputRef = useRef(null);
   const activeConvRef = useRef(null);
 
@@ -57,12 +59,20 @@ export default function ChatPage({ currentUser, theme, showToast }) {
     return ChatService.getMessages(activeConv.id, setMsgs);
   }, [activeConv?.id]);
 
+  // Scroll to bottom only when user is already near bottom (or on new conv load)
   useEffect(() => {
-    if (bottomRef.current) {
-      const el = bottomRef.current.parentElement;
-      if (el) el.scrollTop = el.scrollHeight;
+    const el = msgsContainerRef.current;
+    if (!el) return;
+    if (isAtBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
     }
   }, [msgs]);
+
+  // Always scroll to bottom when switching conversations
+  useEffect(() => {
+    const el = msgsContainerRef.current;
+    if (el) setTimeout(() => { el.scrollTop = el.scrollHeight; }, 50);
+  }, [activeConv?.id]);
 
   const send = () => {
     if (!input.trim() || !activeConv) return;
@@ -357,7 +367,14 @@ export default function ChatPage({ currentUser, theme, showToast }) {
           </div>
 
           {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div
+            ref={msgsContainerRef}
+            onScroll={e => {
+              const el = e.currentTarget;
+              isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+            }}
+            style={{ flex: 1, overflowY: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}
+          >
             {msgs.length === 0 && (
               <div style={{ textAlign: 'center', padding: '48px 0', color: '#CCC' }}>
                 <div style={{ fontSize: 44, marginBottom: 10 }}>👋</div>
