@@ -119,11 +119,18 @@ export const Auth = {
     if (FIREBASE_READY) {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const snap = await getDoc(doc(db, 'users', cred.user.uid));
-      const profile = snap.exists()
-        ? snap.data()
-        : buildUserProfile(cred.user.uid, email, cred.user.displayName || email.split('@')[0], '');
+      let profile;
+      if (snap.exists()) {
+        profile = snap.data();
+      } else {
+        // Profile missing from Firestore (registration write failed) — create it now
+        profile = buildUserProfile(cred.user.uid, email, cred.user.displayName || email.split('@')[0], '');
+        await setDoc(doc(db, 'users', cred.user.uid), profile);
+      }
       if (profile.status === 'baneado') throw new Error('Tu cuenta ha sido suspendida por el administrador.');
       const updated = { ...profile, lastIp: ip, lastLogin: new Date().toISOString() };
+      // Also update the Firestore doc with latest login info
+      try { await setDoc(doc(db, 'users', cred.user.uid), updated, { merge: true }); } catch (_) {}
       // Sync ALL Firestore users to localStorage so admin panel sees everyone
       try {
         const allSnap = await getDocs(collection(db, 'users'));
