@@ -1,6 +1,6 @@
 import { FIREBASE_READY, db, auth } from '../config/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { DB } from './db';
 
 export const UsersService = {
@@ -14,16 +14,11 @@ export const UsersService = {
 
     const fetchUsers = async () => {
       if (stopped) return;
-      if (!auth.currentUser) {
-        // Not authenticated yet — use localStorage cache
-        callback(DB.get('users') || []);
-        return;
-      }
       try {
         const snap = await getDocs(collection(db, 'users'));
         const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (users.length > 0) {
-          DB.set('users', users); // keep cache fresh
+          DB.set('users', users);
           callback(users);
         } else {
           callback(DB.get('users') || []);
@@ -31,14 +26,25 @@ export const UsersService = {
       } catch (_) {
         callback(DB.get('users') || []);
       }
-      // Schedule next refresh
       if (!stopped) timer = setTimeout(fetchUsers, 5000);
     };
 
-    // Start as soon as auth is confirmed
-    const authUnsub = onAuthStateChanged(auth, (user) => {
+    const authUnsub = onAuthStateChanged(auth, async (user) => {
       if (timer) clearTimeout(timer);
-      fetchUsers();
+      if (user) {
+        // Authenticated (real or anonymous) — start polling Firestore
+        fetchUsers();
+      } else {
+        // No auth — try anonymous sign-in so admin panel can read Firestore
+        try {
+          await signInAnonymously(auth);
+          // onAuthStateChanged will fire again with the anonymous user
+        } catch (_) {
+          // Anonymous auth disabled — fall back to localStorage cache
+          callback(DB.get('users') || []);
+          if (!stopped) timer = setTimeout(fetchUsers, 5000);
+        }
+      }
     });
 
     return () => {
