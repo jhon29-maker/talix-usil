@@ -29,6 +29,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const [search, setSearch] = useState('');
   const [showNewChat, setShowNewChat] = useState(false);
   const [newChatUser, setNewChatUser] = useState('');
+  const [newChatTarget, setNewChatTarget] = useState(null); // full user object
   const [allUsersList, setAllUsersList] = useState([]);
   const [newChatTopic, setNewChatTopic] = useState('');
   const [blockedMsg, setBlockedMsg] = useState('');
@@ -95,32 +96,26 @@ export default function ChatPage({ currentUser, theme, showToast }) {
     return allUsers.find(u => u.id === otherId)?.avatarColor || '#6DBE7E';
   };
 
-  const createNewChat = () => {
+  const createNewChat = async () => {
     if (!newChatUser.trim()) return;
-    const newId = 'conv_' + Date.now();
-    const newConv = {
-      id: newId,
-      participants: [currentUser.id, 'ext_' + Date.now()],
-      participantNames: { [currentUser.id]: currentUser.displayName, target: newChatUser },
-      itemTitle: newChatTopic || 'Nuevo chat',
-      lastMsg: '',
-      lastTime: new Date().toISOString(),
-      unread: 0,
-    };
-    const all = DB.get('conversations') || [];
-    all.unshift(newConv);
-    DB.set('conversations', all);
-    DB.set('msgs_' + newId, []);
-    setActiveConv(newConv);
+    const target = newChatTarget;
+    if (!target) { showToast('Selecciona un usuario de la lista', 'error'); return; }
+    const convId = ChatService.getConversationId(currentUser.id, target.id);
+    const participants = [currentUser.id, target.id];
+    // Send a first system message to create the conversation in Firestore
+    await ChatService.sendMessage(convId, currentUser, '👋 ¡Hola! Quiero iniciar un trueque contigo.', participants, newChatTopic || 'Nuevo chat');
     setShowNewChat(false);
-    setNewChatUser(''); setNewChatTopic('');
+    setNewChatUser(''); setNewChatTopic(''); setNewChatTarget(null);
     showToast('¡Conversación creada!', 'success');
   };
 
-  const filteredUsers = allUsersList.filter(u =>
-    u.id !== currentUser?.id &&
-    (u.displayName || '').toLowerCase().includes(newChatUser.toLowerCase())
-  );
+  const filteredUsers = newChatUser.length >= 2
+    ? allUsersList.filter(u =>
+        u.id !== currentUser?.id &&
+        ((u.displayName || '').toLowerCase().includes(newChatUser.toLowerCase()) ||
+         (u.email || '').toLowerCase().includes(newChatUser.toLowerCase()))
+      )
+    : [];
 
   const filteredConvos = convos.filter(c =>
     getOtherName(c).toLowerCase().includes(search.toLowerCase()) ||
@@ -164,33 +159,47 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             </div>
             <div style={{ padding: '18px 24px 24px' }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: '#888', display: 'block', marginBottom: 6 }}>BUSCAR USUARIO USIL</label>
-              <input
-                value={newChatUser}
-                onChange={e => setNewChatUser(e.target.value)}
-                placeholder="Nombre del compañero..."
-                style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #EEE', borderRadius: 12, fontFamily: 'Poppins', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
-                onFocus={e => e.target.style.borderColor = theme.primary}
-                onBlur={e => e.target.style.borderColor = '#EEE'}
-              />
-              {newChatUser && (
-                <div style={{ background: '#F9F9F9', borderRadius: 12, overflow: 'hidden', marginBottom: 12, maxHeight: 160, overflowY: 'auto', border: '1px solid #EEE' }}>
-                  {filteredUsers.length === 0
-                    ? <div style={{ padding: '14px', textAlign: 'center', color: '#AAA', fontSize: 13 }}>No encontrado — se creará el chat igual</div>
-                    : filteredUsers.map(u => (
-                      <div key={u.id} onClick={() => setNewChatUser(u.displayName)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', cursor: 'pointer', borderBottom: '1px solid #EEE' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#F0F4FA'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <TAvatar name={u.displayName} color={u.avatarColor} size={32} />
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1C2B2B' }}>{u.displayName}</div>
-                          <div style={{ fontSize: 11, color: '#AAA' }}>{u.faculty}</div>
-                        </div>
-                      </div>
-                    ))
-                  }
+              {newChatTarget ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: `${theme.primary}12`, border: `1.5px solid ${theme.primary}`, borderRadius: 12, marginBottom: 10 }}>
+                  <TAvatar name={newChatTarget.displayName} color={newChatTarget.avatarColor} size={32} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1C2B2B' }}>{newChatTarget.displayName}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>{newChatTarget.email}</div>
+                  </div>
+                  <button onClick={() => { setNewChatTarget(null); setNewChatUser(''); }} style={{ background: '#EEE', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 12 }}>✕</button>
                 </div>
+              ) : (
+                <>
+                  <input
+                    value={newChatUser}
+                    onChange={e => { setNewChatUser(e.target.value); setNewChatTarget(null); }}
+                    placeholder="Escribe nombre o correo..."
+                    style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #EEE', borderRadius: 12, fontFamily: 'Poppins', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+                    onFocus={e => e.target.style.borderColor = theme.primary}
+                    onBlur={e => e.target.style.borderColor = '#EEE'}
+                    autoFocus
+                  />
+                  {newChatUser.length >= 2 && (
+                    <div style={{ background: '#F9F9F9', borderRadius: 12, overflow: 'hidden', marginBottom: 12, maxHeight: 180, overflowY: 'auto', border: '1px solid #EEE' }}>
+                      {filteredUsers.length === 0
+                        ? <div style={{ padding: '14px', textAlign: 'center', color: '#AAA', fontSize: 13 }}>No encontrado. Verifica el nombre o correo.</div>
+                        : filteredUsers.map(u => (
+                          <div key={u.id} onClick={() => { setNewChatTarget(u); setNewChatUser(u.displayName); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', cursor: 'pointer', borderBottom: '1px solid #EEE' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#F0F4FA'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <TAvatar name={u.displayName} color={u.avatarColor} size={32} />
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: '#1C2B2B' }}>{u.displayName}</div>
+                              <div style={{ fontSize: 11, color: '#888' }}>{u.email} · {u.faculty?.split(' ')[0]}</div>
+                            </div>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )}
+                </>
               )}
               <label style={{ fontSize: 12, fontWeight: 600, color: '#888', display: 'block', marginBottom: 6 }}>ARTÍCULO O MOTIVO (opcional)</label>
               <input
@@ -203,8 +212,8 @@ export default function ChatPage({ currentUser, theme, showToast }) {
               />
               <button
                 onClick={createNewChat}
-                disabled={!newChatUser.trim()}
-                style={{ width: '100%', padding: '13px', borderRadius: 100, border: 'none', background: newChatUser.trim() ? theme.primary : '#DDD', color: '#fff', fontFamily: 'Poppins', fontWeight: 700, fontSize: 14, cursor: newChatUser.trim() ? 'pointer' : 'default' }}
+                disabled={!newChatTarget}
+                style={{ width: '100%', padding: '13px', borderRadius: 100, border: 'none', background: newChatTarget ? theme.primary : '#DDD', color: '#fff', fontFamily: 'Poppins', fontWeight: 700, fontSize: 14, cursor: newChatTarget ? 'pointer' : 'default' }}
               >
                 Iniciar conversación →
               </button>
