@@ -83,8 +83,14 @@ export const Auth = {
           handleCodeInApp: false,
         }),
       ]);
-      // Cache profile locally so admin panel can find this user
-      DB.push('users', profile);
+      // Sync ALL Firestore users to localStorage (for search and admin panel)
+      try {
+        const allSnap = await getDocs(collection(db, 'users'));
+        const allUsers = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        DB.set('users', allUsers);
+      } catch (_) {
+        DB.push('users', profile); // fallback: at least add own profile
+      }
       localStorage.setItem('talix_current_user', JSON.stringify(profile));
       return profile;
     }
