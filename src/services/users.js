@@ -1,7 +1,17 @@
 import { FIREBASE_READY, db, auth } from '../config/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { signInAnonymously } from 'firebase/auth';
 import { DB } from './db';
+
+async function firestoreUsers() {
+  // Ensure we have some auth (real or anonymous) before reading
+  if (!auth.currentUser) {
+    try { await signInAnonymously(auth); } catch (_) {}
+  }
+  if (!auth.currentUser) return null; // anonymous auth disabled
+  const snap = await getDocs(collection(db, 'users'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
 
 export const UsersService = {
   subscribe: (callback) => {
@@ -12,12 +22,11 @@ export const UsersService = {
     let stopped = false;
     let timer = null;
 
-    const fetchUsers = async () => {
+    const poll = async () => {
       if (stopped) return;
       try {
-        const snap = await getDocs(collection(db, 'users'));
-        const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (users.length > 0) {
+        const users = await firestoreUsers();
+        if (users && users.length > 0) {
           DB.set('users', users);
           callback(users);
         } else {
@@ -26,31 +35,15 @@ export const UsersService = {
       } catch (_) {
         callback(DB.get('users') || []);
       }
-      if (!stopped) timer = setTimeout(fetchUsers, 5000);
+      if (!stopped) timer = setTimeout(poll, 5000);
     };
 
-    const authUnsub = onAuthStateChanged(auth, async (user) => {
-      if (timer) clearTimeout(timer);
-      if (user) {
-        // Authenticated (real or anonymous) — start polling Firestore
-        fetchUsers();
-      } else {
-        // No auth — try anonymous sign-in so admin panel can read Firestore
-        try {
-          await signInAnonymously(auth);
-          // onAuthStateChanged will fire again with the anonymous user
-        } catch (_) {
-          // Anonymous auth disabled — fall back to localStorage cache
-          callback(DB.get('users') || []);
-          if (!stopped) timer = setTimeout(fetchUsers, 5000);
-        }
-      }
-    });
+    // Small delay to let Firebase Auth restore persisted session first
+    timer = setTimeout(poll, 800);
 
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
-      authUnsub();
     };
   },
 };
