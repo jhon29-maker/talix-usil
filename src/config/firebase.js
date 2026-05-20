@@ -4,27 +4,20 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: "AIzaSyAV7EMCzdrZQMe17U-yC4n7HkbOw-YqVdY",
+  authDomain: "talix-final.firebaseapp.com",
+  projectId: "talix-final",
+  storageBucket: "talix-final.firebasestorage.app",
+  messagingSenderId: "740464633969",
+  appId: "1:740464633969:web:90c847dbb16a1339add3d0",
+  measurementId: "G-YC5SLFBRH7",
 };
 
-// True if all Firebase env vars are configured
-export const FIREBASE_READY =
-  firebaseConfig.apiKey &&
-  !firebaseConfig.apiKey.includes('undefined') &&
-  !firebaseConfig.apiKey.includes('AIzaSy...');
+export const FIREBASE_READY = true;
 
-let app, auth, db, storage;
-
-if (FIREBASE_READY) {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  storage = getStorage(app);
-}
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
 export { auth, db, storage };
