@@ -182,6 +182,29 @@ export const Auth = {
     localStorage.removeItem('talix_logged');
   },
 
+  ensureFirestoreProfile: async () => {
+    if (!FIREBASE_READY || !auth.currentUser) return;
+    try {
+      const snap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      if (!snap.exists()) {
+        const localUser = Auth.getCurrentUser();
+        if (localUser) {
+          await setDoc(doc(db, 'users', auth.currentUser.uid), { ...localUser, id: auth.currentUser.uid });
+        } else {
+          const profile = buildUserProfile(auth.currentUser.uid, auth.currentUser.email, auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Usuario', '');
+          await setDoc(doc(db, 'users', auth.currentUser.uid), profile);
+          localStorage.setItem('talix_current_user', JSON.stringify(profile));
+        }
+        // Sync all users to localStorage after creating profile
+        try {
+          const allSnap = await getDocs(collection(db, 'users'));
+          const allUsers = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          DB.set('users', allUsers);
+        } catch (_) {}
+      }
+    } catch (_) {}
+  },
+
   updateProfile: (updates) => {
     const user = Auth.getCurrentUser();
     if (!user) return;

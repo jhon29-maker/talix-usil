@@ -54,6 +54,11 @@ function App() {
   useEffect(() => { localStorage.setItem('talix_page', page); }, [page]);
   useEffect(() => { localStorage.setItem('talix_tweaks', JSON.stringify(tweaks)); }, [tweaks]);
 
+  // Ensure Firestore profile exists for users who registered during restrictive rules period
+  useEffect(() => {
+    if (loggedIn && currentUser) Auth.ensureFirestoreProfile();
+  }, [loggedIn]);
+
   const handleLogin = () => {
     const user = Auth.getCurrentUser();
     setCurrentUser(user);
