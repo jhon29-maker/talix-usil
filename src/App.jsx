@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { THEMES, TWEAK_DEFAULTS } from './config/themes';
 import { Auth } from './services/auth';
+import { FIREBASE_READY, auth } from './config/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { seedDefaultChats } from './services/chat';
 import Sidebar from './components/Sidebar';
 import TweaksPanel from './components/TweaksPanel';
@@ -54,9 +56,13 @@ function App() {
   useEffect(() => { localStorage.setItem('talix_page', page); }, [page]);
   useEffect(() => { localStorage.setItem('talix_tweaks', JSON.stringify(tweaks)); }, [tweaks]);
 
-  // Ensure Firestore profile exists for users who registered during restrictive rules period
+  // Wait for Firebase Auth to restore session, then ensure Firestore profile exists
   useEffect(() => {
-    if (loggedIn && currentUser) Auth.ensureFirestoreProfile();
+    if (!FIREBASE_READY || !loggedIn) return;
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) Auth.ensureFirestoreProfile();
+    });
+    return () => unsub();
   }, [loggedIn]);
 
   const handleLogin = () => {
