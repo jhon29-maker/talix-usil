@@ -75,22 +75,34 @@ export const Auth = {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(cred.user, { displayName });
       const profile = buildUserProfile(cred.user.uid, email, displayName, faculty, acceptedAt);
-      await Promise.all([
-        setDoc(doc(db, 'users', cred.user.uid), profile),
-        saveEmailRegistry(email, displayName, faculty),
-        sendEmailVerification(cred.user, {
-          url: window.location.origin,
-          handleCodeInApp: false,
-        }),
-      ]);
-      // Sync ALL Firestore users to localStorage (for search and admin panel)
+
+      // Save profile to Firestore — retry up to 3 times in case of transient errors
+      let saved = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await setDoc(doc(db, 'users', cred.user.uid), profile);
+          saved = true;
+          break;
+        } catch (_) {
+          if (attempt < 2) await new Promise(r => setTimeout(r, 800));
+        }
+      }
+
+      // Run other tasks (don't block on email verification errors)
+      try { await saveEmailRegistry(email, displayName, faculty); } catch (_) {}
+      try {
+        await sendEmailVerification(cred.user, { url: window.location.origin, handleCodeInApp: false });
+      } catch (_) {}
+
+      // Sync ALL Firestore users to localStorage
       try {
         const allSnap = await getDocs(collection(db, 'users'));
         const allUsers = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         DB.set('users', allUsers);
       } catch (_) {
-        DB.push('users', profile); // fallback: at least add own profile
+        DB.push('users', profile);
       }
+
       localStorage.setItem('talix_current_user', JSON.stringify(profile));
       return profile;
     }
