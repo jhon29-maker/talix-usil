@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Authenticated users can read all data, write only their own
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    match /conversations/{convId} {
+      allow read, write: if request.auth != null;
+      match /messages/{msgId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+    match /email_registry/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /scam_reports/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /notifications/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
