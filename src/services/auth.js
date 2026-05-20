@@ -76,16 +76,20 @@ export const Auth = {
       await updateProfile(cred.user, { displayName });
       const profile = buildUserProfile(cred.user.uid, email, displayName, faculty, acceptedAt);
 
-      // Save profile to Firestore — retry up to 3 times in case of transient errors
+      // Save profile to Firestore — retry up to 5 times
       let saved = false;
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; attempt < 5; attempt++) {
         try {
           await setDoc(doc(db, 'users', cred.user.uid), profile);
           saved = true;
           break;
         } catch (_) {
-          if (attempt < 2) await new Promise(r => setTimeout(r, 800));
+          if (attempt < 4) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
         }
+      }
+      // If still not saved, schedule background retries every 10s
+      if (!saved) {
+        localStorage.setItem('talix_pending_profile', JSON.stringify({ uid: cred.user.uid, profile }));
       }
 
       // Run other tasks (don't block on email verification errors)
@@ -185,23 +189,30 @@ export const Auth = {
   ensureFirestoreProfile: async () => {
     if (!FIREBASE_READY || !auth.currentUser) return;
     try {
+      // Retry pending profile from failed registration
+      const pending = localStorage.getItem('talix_pending_profile');
+      if (pending) {
+        try {
+          const { uid, profile } = JSON.parse(pending);
+          if (uid === auth.currentUser.uid) {
+            await setDoc(doc(db, 'users', uid), profile);
+            localStorage.removeItem('talix_pending_profile');
+          }
+        } catch (_) {}
+      }
+
       const snap = await getDoc(doc(db, 'users', auth.currentUser.uid));
       if (!snap.exists()) {
         const localUser = Auth.getCurrentUser();
-        if (localUser) {
-          await setDoc(doc(db, 'users', auth.currentUser.uid), { ...localUser, id: auth.currentUser.uid });
-        } else {
-          const profile = buildUserProfile(auth.currentUser.uid, auth.currentUser.email, auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Usuario', '');
-          await setDoc(doc(db, 'users', auth.currentUser.uid), profile);
-          localStorage.setItem('talix_current_user', JSON.stringify(profile));
-        }
-        // Sync all users to localStorage after creating profile
-        try {
-          const allSnap = await getDocs(collection(db, 'users'));
-          const allUsers = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          DB.set('users', allUsers);
-        } catch (_) {}
+        const profile = localUser
+          ? { ...localUser, id: auth.currentUser.uid }
+          : buildUserProfile(auth.currentUser.uid, auth.currentUser.email, auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Usuario', '');
+        await setDoc(doc(db, 'users', auth.currentUser.uid), profile);
+        if (!localUser) localStorage.setItem('talix_current_user', JSON.stringify(profile));
       }
+      // Always sync all users to localStorage
+      const allSnap = await getDocs(collection(db, 'users'));
+      DB.set('users', allSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (_) {}
   },
 
