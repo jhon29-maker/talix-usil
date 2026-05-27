@@ -1,4 +1,6 @@
 import { DB } from './db';
+import { FIREBASE_READY, db } from '../config/firebase';
+import { doc, deleteDoc, collection, getDocs, query, where } from 'firebase/firestore';
 
 export const AdminService = {
   getStats: () => {
@@ -41,23 +43,30 @@ export const AdminService = {
     DB.update('users', userId, { status: 'activo', banReason: null, bannedAt: null });
   },
 
-  deleteUser: (userId) => {
-    // Remove user
+  deleteUser: async (userId) => {
+    // Remove from localStorage
     const users = DB.get('users') || [];
+    const userObj = users.find(u => u.id === userId);
     DB.set('users', users.filter(u => u.id !== userId));
-    // Remove their items
     const items = DB.get('items') || [];
     DB.set('items', items.filter(i => i.userId !== userId));
-    // Remove conversations they participated in
     const convos = DB.get('conversations') || [];
     DB.set('conversations', convos.filter(c => !c.participants?.includes(userId)));
-    // Remove from email_registry
-    const registry = DB.get('email_registry') || [];
-    const userObj = users.find(u => u.id === userId);
-    if (userObj) DB.set('email_registry', registry.filter(r => r.email !== userObj.email));
-    // Remove scam reports involving them
+    if (userObj) {
+      const registry = DB.get('email_registry') || [];
+      DB.set('email_registry', registry.filter(r => r.email !== userObj.email));
+    }
     const scams = DB.get('scam_reports') || [];
     DB.set('scam_reports', scams.filter(r => r.reporterId !== userId));
+
+    // Remove from Firestore
+    if (FIREBASE_READY) {
+      try { await deleteDoc(doc(db, 'users', userId)); } catch (_) {}
+      try {
+        const itemsSnap = await getDocs(query(collection(db, 'items'), where('userId', '==', userId)));
+        await Promise.all(itemsSnap.docs.map(d => deleteDoc(d.ref)));
+      } catch (_) {}
+    }
   },
 
   deleteItem: (itemId) => DB.delete('items', itemId),

@@ -27,8 +27,16 @@ export const UsersService = {
       try {
         const users = await firestoreUsers();
         if (users && users.length > 0) {
-          DB.set('users', users);
-          callback(users);
+          // Deduplicate by email — keep most recently created per email
+          const byEmail = {};
+          users.forEach(u => {
+            if (!u.email) return;
+            const existing = byEmail[u.email];
+            if (!existing || (u.createdAt || '') > (existing.createdAt || '')) byEmail[u.email] = u;
+          });
+          const unique = Object.values(byEmail);
+          DB.set('users', unique);
+          callback(unique);
         } else {
           callback(DB.get('users') || []);
         }

@@ -273,7 +273,7 @@ export default function AdminDashboard({ onLogout }) {
                     </div>
                     <div style={{ display: 'flex', gap: 10 }}>
                       <button onClick={() => setDeleteModal(null)} style={{ flex: 1, padding: '11px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#888', fontFamily: 'Poppins', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
-                      <button onClick={() => { AdminService.deleteUser(deleteModal.userId); setStats(AdminService.getStats()); setDeleteModal(null); }} style={{ flex: 1, padding: '11px', background: 'rgba(229,57,53,0.25)', border: '1px solid rgba(229,57,53,0.5)', borderRadius: 10, color: '#E57373', fontFamily: 'Poppins', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>🗑️ Eliminar todo</button>
+                      <button onClick={async () => { setDeleteModal(null); await AdminService.deleteUser(deleteModal.userId); setStats(AdminService.getStats()); }} style={{ flex: 1, padding: '11px', background: 'rgba(229,57,53,0.25)', border: '1px solid rgba(229,57,53,0.5)', borderRadius: 10, color: '#E57373', fontFamily: 'Poppins', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>🗑️ Eliminar todo</button>
                     </div>
                   </div>
                 </div>
