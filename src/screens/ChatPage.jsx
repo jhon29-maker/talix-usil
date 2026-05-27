@@ -3,19 +3,36 @@ import { DB } from '../services/db';
 import { UsersService } from '../services/users';
 import { ChatService } from '../services/chat';
 import { ModerationService } from '../services/moderation';
+import { FIREBASE_READY, db } from '../config/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { TAvatar, TButton } from '../components/ui';
 import TradeCompleteModal from './TradeCompleteModal';
 
 const QUICK = ['¿Cuándo puedes?', '¿Dónde nos vemos?', '¡Me interesa! 🙌', '¿Está disponible aún?'];
 const ECO_SPOTS = ['Biblioteca Central USIL', 'Cafetería Principal', 'Entrada Principal', 'Sala de Estudio B2', 'Patio Central', 'Terraza USIL', 'Edificio F – Lobby'];
 
-function fmtTime(iso) {
-  if (!iso) return '';
-  const d = new Date(iso), now = new Date(), diff = now - d;
+// Handle both Firestore Timestamps and ISO strings
+function parseTs(ts) {
+  if (!ts) return null;
+  if (typeof ts.toDate === 'function') return ts.toDate();
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function fmtTime(ts) {
+  const d = parseTs(ts);
+  if (!d) return '';
+  const diff = Date.now() - d.getTime();
   if (diff < 60000) return 'ahora';
   if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
   if (diff < 86400000) return d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
   return d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
+}
+
+function fmtMsgTime(ts) {
+  const d = parseTs(ts);
+  if (!d) return '';
+  return d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 }
 
 export default function ChatPage({ currentUser, theme, showToast }) {
@@ -36,6 +53,12 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const [showTradeComplete, setShowTradeComplete] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [sendingPhoto, setSendingPhoto] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [reportTab, setReportTab] = useState('estafa'); // 'estafa' | 'evidencia'
+  const [reportText, setReportText] = useState('');
+  const [reportPhoto, setReportPhoto] = useState(null);
+  const [sendingReport, setSendingReport] = useState(false);
+  const reportFileRef = useRef(null);
   const bottomRef = useRef(null);
   const msgsContainerRef = useRef(null);
   const isAtBottomRef = useRef(true);
@@ -108,6 +131,37 @@ export default function ChatPage({ currentUser, theme, showToast }) {
     }
     setPhotoPreview(null);
     setSendingPhoto(false);
+  };
+
+  const submitReport = async () => {
+    if (!reportText.trim() && !reportPhoto) { showToast('Agrega un comentario o foto', 'error'); return; }
+    setSendingReport(true);
+    try {
+      let photoUrl = null;
+      if (reportPhoto) photoUrl = await ChatService.uploadPhoto(activeConv?.id || 'reports', reportPhoto);
+      const report = {
+        type: reportTab,
+        reporterId: currentUser?.id,
+        reporterName: currentUser?.displayName,
+        convId: activeConv?.id || null,
+        otherUserId: (activeConv?.participants || []).find(p => p !== currentUser?.id),
+        comment: reportText,
+        photoUrl,
+        createdAt: FIREBASE_READY ? serverTimestamp() : new Date().toISOString(),
+        status: 'pendiente',
+      };
+      if (FIREBASE_READY) {
+        await addDoc(collection(db, 'scam_reports'), report);
+      } else {
+        DB.push('scam_reports', report);
+      }
+      showToast(reportTab === 'estafa' ? '⚠️ Reporte enviado al administrador' : '📎 Evidencia enviada correctamente', 'success');
+      setShowReport(false);
+      setReportText(''); setReportPhoto(null);
+    } catch (_) {
+      showToast('Error al enviar. Intenta de nuevo.', 'error');
+    }
+    setSendingReport(false);
   };
 
   const getOtherName = (conv) => {
@@ -192,6 +246,46 @@ export default function ChatPage({ currentUser, theme, showToast }) {
           onClose={() => { setShowTradeComplete(false); showToast('¡Trueque completado! +10 puntos 🏆', 'success'); }}
         />
       )}
+      {/* Report modal */}
+      {showReport && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 7000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 24, width: 440, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid #EEE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontWeight: 700, fontSize: 16, color: '#1C2B2B' }}>⚠️ Reportar</div>
+              <button onClick={() => { setShowReport(false); setReportText(''); setReportPhoto(null); }} style={{ background: '#F4F6F0', border: 'none', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 15 }}>✕</button>
+            </div>
+            {/* Tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid #EEE' }}>
+              {[['estafa', '🚨 Reportar estafa'], ['evidencia', '📎 Subir evidencia']].map(([tab, label]) => (
+                <button key={tab} onClick={() => setReportTab(tab)} style={{ flex: 1, padding: '12px', border: 'none', background: 'none', fontFamily: 'Poppins', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: reportTab === tab ? theme.primary : '#888', borderBottom: reportTab === tab ? `2px solid ${theme.primary}` : '2px solid transparent' }}>{label}</button>
+              ))}
+            </div>
+            <div style={{ padding: '18px 24px 24px' }}>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
+                {reportTab === 'estafa' ? 'Describe la situación sospechosa. El administrador revisará el reporte.' : 'Sube evidencia del intercambio (foto del artículo, captura, etc.).'}
+              </div>
+              <textarea
+                value={reportText}
+                onChange={e => setReportText(e.target.value)}
+                placeholder={reportTab === 'estafa' ? 'Describe qué pasó...' : 'Comentario sobre la evidencia (opcional)...'}
+                style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #EEE', borderRadius: 12, fontFamily: 'Poppins', fontSize: 13, outline: 'none', boxSizing: 'border-box', minHeight: 90, resize: 'vertical', marginBottom: 12 }}
+              />
+              <input ref={reportFileRef} type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = ev => setReportPhoto(ev.target.result); r.readAsDataURL(f); e.target.value = ''; }} style={{ display: 'none' }} />
+              {reportPhoto
+                ? <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <img src={reportPhoto} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10 }} />
+                    <button onClick={() => setReportPhoto(null)} style={{ fontSize: 12, color: '#E57373', background: 'none', border: 'none', cursor: 'pointer' }}>Quitar foto</button>
+                  </div>
+                : <button onClick={() => reportFileRef.current?.click()} style={{ width: '100%', padding: '10px', border: '1.5px dashed #DDD', borderRadius: 12, background: '#FAFAFA', fontFamily: 'Poppins', fontSize: 13, color: '#888', cursor: 'pointer', marginBottom: 14 }}>📷 Adjuntar foto</button>
+              }
+              <button onClick={submitReport} disabled={sendingReport} style={{ width: '100%', padding: '13px', borderRadius: 100, border: 'none', background: reportTab === 'estafa' ? '#E53935' : theme.primary, color: '#fff', fontFamily: 'Poppins', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                {sendingReport ? 'Enviando...' : reportTab === 'estafa' ? '🚨 Enviar reporte' : '📎 Enviar evidencia'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* New chat modal */}
       {showNewChat && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 6000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -359,6 +453,12 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             >
               📅 Coordinar
             </button>
+            <button
+              onClick={() => setShowReport(true)}
+              style={{ background: '#FFEBEE', color: '#E53935', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
+            >
+              ⚠️ Reportar
+            </button>
           </div>
 
           {/* Coordination panel */}
@@ -431,8 +531,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                       {m.imageUrl && <img src={m.imageUrl} alt="foto" style={{ display: 'block', maxWidth: 220, maxHeight: 220, borderRadius: 14, objectFit: 'cover' }} />}
                       {m.text && <div style={{ padding: m.imageUrl ? '6px 12px 4px' : 0 }}>{m.text}</div>}
                       <div style={{ fontSize: 10, opacity: 0.55, marginTop: 3, textAlign: 'right', padding: m.imageUrl ? '0 8px 4px' : 0 }}>
-                        {m.createdAt ? new Date(m.createdAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''}
-                        {isMe && ' ✓✓'}
+                        {fmtMsgTime(m.createdAt)}{isMe && ' ✓✓'}
                       </div>
                     </div>
                   </div>
