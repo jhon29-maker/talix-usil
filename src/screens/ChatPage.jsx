@@ -499,6 +499,21 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             <span style={{ fontSize: 11, color: '#795548', fontWeight: 500 }}>Por tu seguridad, <strong>no compartas números de teléfono</strong> ni coordines fuera de TALIX. Todos los intercambios deben realizarse en los Eco-Spots del campus.</span>
           </div>
 
+          {/* Trade confirm alert banner */}
+          {msgs.some(m => m.isTradeConfirm && m.requesterId !== currentUser?.id) && (
+            <div style={{ margin: '10px 16px 0', background: 'linear-gradient(135deg, #FFFDE7, #FFF8E1)', border: '2px solid #FFD54F', borderRadius: 18, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 16px rgba(255,193,7,0.25)', flexShrink: 0 }}>
+              <div style={{ fontSize: 32, flexShrink: 0 }}>🤝</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#5D4037', marginBottom: 2 }}>¡Tu compañero confirmó el trueque!</div>
+                <div style={{ fontSize: 12, color: '#795548' }}>¿El intercambio se realizó correctamente?</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button onClick={() => setShowTradeComplete(true)} style={{ padding: '9px 16px', background: '#2E7D32', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>✅ Confirmar</button>
+                <button onClick={() => { setReportTab('estafa'); setShowReport(true); }} style={{ padding: '9px 16px', background: '#E53935', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>🚨 Reportar</button>
+              </div>
+            </div>
+          )}
+
           {/* Messages */}
           <div
             ref={msgsContainerRef}
