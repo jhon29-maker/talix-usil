@@ -34,10 +34,13 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const [newChatTopic, setNewChatTopic] = useState('');
   const [blockedMsg, setBlockedMsg] = useState('');
   const [showTradeComplete, setShowTradeComplete] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [sendingPhoto, setSendingPhoto] = useState(false);
   const bottomRef = useRef(null);
   const msgsContainerRef = useRef(null);
   const isAtBottomRef = useRef(true);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
   const activeConvRef = useRef(null);
 
   useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
@@ -85,6 +88,26 @@ export default function ChatPage({ currentUser, theme, showToast }) {
     ChatService.sendMessage(activeConv.id, currentUser, input, activeConv.participants || [currentUser.id], activeConv.itemTitle);
     setInput('');
     setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhotoPreview(ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const sendPhoto = async () => {
+    if (!photoPreview || !activeConv) return;
+    setSendingPhoto(true);
+    const url = await ChatService.uploadPhoto(activeConv.id, photoPreview);
+    if (url) {
+      await ChatService.sendMessage(activeConv.id, currentUser, '', activeConv.participants || [currentUser.id], activeConv.itemTitle, url);
+    }
+    setPhotoPreview(null);
+    setSendingPhoto(false);
   };
 
   const getOtherName = (conv) => {
@@ -404,9 +427,10 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                   {!isMe && <TAvatar name={m.fromName || 'U'} color={m.fromColor || '#6DBE7E'} size={28} />}
                   <div style={{ maxWidth: '66%' }}>
                     {!isMe && <div style={{ fontSize: 11, color: '#AAA', marginBottom: 3, paddingLeft: 4 }}>{m.fromName}</div>}
-                    <div style={{ padding: '10px 15px', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isMe ? theme.primary : '#fff', color: isMe ? '#fff' : '#1C2B2B', fontSize: 14, lineHeight: 1.55, boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
-                      {m.text}
-                      <div style={{ fontSize: 10, opacity: 0.55, marginTop: 3, textAlign: 'right' }}>
+                    <div style={{ padding: m.imageUrl ? 4 : '10px 15px', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isMe ? theme.primary : '#fff', color: isMe ? '#fff' : '#1C2B2B', fontSize: 14, lineHeight: 1.55, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                      {m.imageUrl && <img src={m.imageUrl} alt="foto" style={{ display: 'block', maxWidth: 220, maxHeight: 220, borderRadius: 14, objectFit: 'cover' }} />}
+                      {m.text && <div style={{ padding: m.imageUrl ? '6px 12px 4px' : 0 }}>{m.text}</div>}
+                      <div style={{ fontSize: 10, opacity: 0.55, marginTop: 3, textAlign: 'right', padding: m.imageUrl ? '0 8px 4px' : 0 }}>
                         {m.createdAt ? new Date(m.createdAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''}
                         {isMe && ' ✓✓'}
                       </div>
@@ -424,6 +448,20 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             </div>
           )}
 
+          {/* Photo preview */}
+          {photoPreview && (
+            <div style={{ margin: '0 22px 6px', background: '#fff', border: '1.5px solid #EEE', borderRadius: 16, padding: 10, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              <img src={photoPreview} alt="preview" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 10 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4 }}>📷 Foto lista para enviar</div>
+                <button onClick={() => setPhotoPreview(null)} style={{ fontSize: 11, color: '#E57373', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Cancelar</button>
+              </div>
+              <button onClick={sendPhoto} disabled={sendingPhoto} style={{ background: theme.primary, border: 'none', borderRadius: 100, padding: '9px 18px', color: '#fff', fontFamily: 'Poppins', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                {sendingPhoto ? 'Enviando...' : 'Enviar foto'}
+              </button>
+            </div>
+          )}
+
           {/* Quick replies */}
           <div style={{ padding: '8px 22px 4px', background: '#F9FAF8', display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
             {QUICK.map(q => (
@@ -433,6 +471,8 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
           {/* Input */}
           <div style={{ padding: '10px 22px 16px', background: '#F9FAF8', display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+            <button onClick={() => fileInputRef.current?.click()} title="Enviar foto" style={{ width: 44, height: 44, borderRadius: '50%', background: '#F0F4F0', border: 'none', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>📷</button>
             <input
               ref={inputRef}
               value={input}

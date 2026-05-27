@@ -11,7 +11,8 @@ import {
   serverTimestamp,
   getDoc,
 } from 'firebase/firestore';
-import { FIREBASE_READY, db } from '../config/firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { FIREBASE_READY, db, storage } from '../config/firebase';
 import { DB } from './db';
 import { NotificationsService } from './notifications';
 
@@ -20,13 +21,20 @@ export const ChatService = {
 
   getConversations: (userId, cb) => {
     if (FIREBASE_READY) {
+      // No orderBy to avoid composite index requirement — sort client-side
       const q = query(
         collection(db, 'conversations'),
-        where('participants', 'array-contains', userId),
-        orderBy('lastTime', 'desc')
+        where('participants', 'array-contains', userId)
       );
       return onSnapshot(q, (snap) => {
-        cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const sorted = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => {
+            const ta = a.lastTime ? new Date(a.lastTime).getTime() : 0;
+            const tb = b.lastTime ? new Date(b.lastTime).getTime() : 0;
+            return tb - ta;
+          });
+        cb(sorted);
       });
     }
     return DB.subscribe('conversations', (convos) => {
@@ -47,28 +55,37 @@ export const ChatService = {
     return DB.subscribe('msgs_' + convId, (msgs) => cb(msgs || []));
   },
 
-  sendMessage: async (convId, from, text, participants, itemTitle) => {
+  uploadPhoto: async (convId, dataUrl) => {
+    if (!FIREBASE_READY || !storage) return null;
+    try {
+      const storageRef = ref(storage, `chat/${convId}/${Date.now()}`);
+      await uploadString(storageRef, dataUrl, 'data_url');
+      return await getDownloadURL(storageRef);
+    } catch (_) { return null; }
+  },
+
+  sendMessage: async (convId, from, text, participants, itemTitle, imageUrl = null) => {
     const msg = {
       convId,
       fromId: from.id,
       fromName: from.displayName,
       fromColor: from.avatarColor,
-      text,
+      text: text || '',
+      imageUrl: imageUrl || null,
       read: false,
       createdAt: FIREBASE_READY ? serverTimestamp() : new Date().toISOString(),
     };
 
     if (FIREBASE_READY) {
-      // Add message to subcollection
       await addDoc(collection(db, 'conversations', convId, 'messages'), msg);
 
-      // Upsert the conversation doc
       const convRef = doc(db, 'conversations', convId);
       const snap = await getDoc(convRef);
+      const now = new Date().toISOString();
       if (snap.exists()) {
         await updateDoc(convRef, {
-          lastMsg: text,
-          lastTime: serverTimestamp(),
+          lastMsg: imageUrl ? '📷 Foto' : text,
+          lastTime: now,
           unread: (snap.data().unread || 0) + 1,
         });
       } else {
@@ -76,8 +93,8 @@ export const ChatService = {
           id: convId,
           participants,
           itemTitle: itemTitle || '',
-          lastMsg: text,
-          lastTime: serverTimestamp(),
+          lastMsg: imageUrl ? '📷 Foto' : text,
+          lastTime: now,
           unread: 1,
         });
       }
@@ -85,7 +102,7 @@ export const ChatService = {
       const otherId = participants.find(p => p !== from.id);
       NotificationsService.add(otherId, {
         icon: '💬',
-        text: `${from.displayName}: ${text.slice(0, 40)}`,
+        text: `${from.displayName}: ${imageUrl ? '📷 Foto' : text.slice(0, 40)}`,
         time: 'ahora',
       });
       return;
@@ -95,29 +112,15 @@ export const ChatService = {
     DB.push('msgs_' + convId, msg);
     const convos = DB.get('conversations') || [];
     const existing = convos.find(c => c.id === convId);
+    const now = new Date().toISOString();
     if (existing) {
-      DB.update('conversations', convId, {
-        lastMsg: text,
-        lastTime: new Date().toISOString(),
-        unread: (existing.unread || 0) + 1,
-      });
+      DB.update('conversations', convId, { lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unread: (existing.unread || 0) + 1 });
     } else {
-      DB.push('conversations', {
-        id: convId,
-        participants,
-        itemTitle: itemTitle || '',
-        lastMsg: text,
-        lastTime: new Date().toISOString(),
-        unread: 1,
-      });
+      DB.push('conversations', { id: convId, participants, itemTitle: itemTitle || '', lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unread: 1 });
     }
 
     const otherId = participants.find(p => p !== from.id);
-    NotificationsService.add(otherId, {
-      icon: '💬',
-      text: `${from.displayName}: ${text.slice(0, 40)}`,
-      time: 'ahora',
-    });
+    NotificationsService.add(otherId, { icon: '💬', text: `${from.displayName}: ${imageUrl ? '📷 Foto' : text.slice(0, 40)}`, time: 'ahora' });
   },
 
   setMeetup: async (convId, place, dateTime) => {
