@@ -1,6 +1,9 @@
 import { useState, useRef } from 'react';
 import { DB } from '../services/db';
 import { Auth } from '../services/auth';
+import { ChatService } from '../services/chat';
+import { FIREBASE_READY, db } from '../config/firebase';
+import { doc, updateDoc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 const POINTS_PER_TRADE = 10;
 
@@ -83,14 +86,27 @@ export default function TradeCompleteModal({ conv, currentUser, theme, onClose, 
 
     const sysMsg = {
       convId: conv.id, fromId: 'system', fromName: 'TALIX', fromColor: '#2E7D32',
-      text: `🎉 ¡Trueque completado! Ambas partes ganaron +${POINTS_PER_TRADE} pts TALIX.${comment ? ` Comentario: "${comment}"` : ''}`,
+      text: `🎉 ¡Trueque completado por ${currentUser.displayName}! Ambas partes ganaron +${POINTS_PER_TRADE} pts TALIX.${comment ? ` "${comment}"` : ''}`,
       isSystem: true, evidencePhoto: photo || null, read: false,
-      createdAt: new Date().toISOString(),
+      createdAt: FIREBASE_READY ? serverTimestamp() : new Date().toISOString(),
     };
-    const convos = DB.get('conversations') || [];
-    const idx = convos.findIndex(c => c.id === conv.id);
-    if (idx >= 0) { convos[idx] = { ...convos[idx], status: 'completado', completedAt: new Date().toISOString() }; DB.set('conversations', convos); }
-    DB.push('msgs_' + conv.id, sysMsg);
+
+    if (FIREBASE_READY) {
+      try {
+        await addDoc(collection(db, 'conversations', conv.id, 'messages'), sysMsg);
+        await setDoc(doc(db, 'conversations', conv.id), { status: 'completado', completedAt: new Date().toISOString() }, { merge: true });
+      } catch (_) {}
+      // Notify the other participant to confirm
+      if (otherId) {
+        await ChatService.notifyTradeComplete(conv.id, currentUser, otherId, conv.participants || [], conv.itemTitle);
+      }
+    } else {
+      const convos = DB.get('conversations') || [];
+      const idx = convos.findIndex(c => c.id === conv.id);
+      if (idx >= 0) { convos[idx] = { ...convos[idx], status: 'completado', completedAt: new Date().toISOString() }; DB.set('conversations', convos); }
+      DB.push('msgs_' + conv.id, sysMsg);
+    }
+
     setLoading(false);
     setDone(true);
     setDoneModeResult('complete');

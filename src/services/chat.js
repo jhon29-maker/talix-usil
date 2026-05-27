@@ -64,6 +64,37 @@ export const ChatService = {
     } catch (_) { return null; }
   },
 
+  resetUnread: async (convId, userId) => {
+    if (!FIREBASE_READY) return;
+    try {
+      const { updateDoc, doc: firestoreDoc } = await import('firebase/firestore');
+      await updateDoc(firestoreDoc(db, 'conversations', convId), { [`unreadCounts.${userId}`]: 0 });
+    } catch (_) {}
+  },
+
+  notifyTradeComplete: async (convId, fromUser, otherId, participants, itemTitle) => {
+    const msg = {
+      convId, fromId: 'system', fromName: 'TALIX', fromColor: '#2E7D32',
+      text: `🎉 ${fromUser.displayName} confirmó el trueque. ¿Lo confirmas por tu parte?`,
+      isSystem: true, isTradeConfirm: true, requesterId: fromUser.id,
+      createdAt: FIREBASE_READY ? serverTimestamp() : new Date().toISOString(),
+    };
+    if (FIREBASE_READY) {
+      await addDoc(collection(db, 'conversations', convId, 'messages'), msg);
+      const convRef = doc(db, 'conversations', convId);
+      const now = new Date().toISOString();
+      try {
+        const snap = await getDoc(convRef);
+        const unreadCounts = snap.exists() ? (snap.data().unreadCounts || {}) : {};
+        unreadCounts[otherId] = (unreadCounts[otherId] || 0) + 1;
+        await setDoc(convRef, { lastMsg: msg.text, lastTime: now, unreadCounts }, { merge: true });
+      } catch (_) {}
+    } else {
+      DB.push('msgs_' + convId, msg);
+    }
+    NotificationsService.add(otherId, { icon: '🎉', text: `${fromUser.displayName} confirmó el trueque con ${itemTitle || 'contigo'}. ¡Confirma tu parte!`, time: 'ahora' });
+  },
+
   sendMessage: async (convId, from, text, participants, itemTitle, imageUrl = null) => {
     const msg = {
       convId,
@@ -82,21 +113,15 @@ export const ChatService = {
       const convRef = doc(db, 'conversations', convId);
       const snap = await getDoc(convRef);
       const now = new Date().toISOString();
+      const otherId2 = participants.find(p => p !== from.id);
       if (snap.exists()) {
-        await updateDoc(convRef, {
-          lastMsg: imageUrl ? '📷 Foto' : text,
-          lastTime: now,
-          unread: (snap.data().unread || 0) + 1,
-        });
+        const unreadCounts = snap.data().unreadCounts || {};
+        if (otherId2) unreadCounts[otherId2] = (unreadCounts[otherId2] || 0) + 1;
+        await updateDoc(convRef, { lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unreadCounts });
       } else {
-        await setDoc(convRef, {
-          id: convId,
-          participants,
-          itemTitle: itemTitle || '',
-          lastMsg: imageUrl ? '📷 Foto' : text,
-          lastTime: now,
-          unread: 1,
-        });
+        const unreadCounts = {};
+        if (otherId2) unreadCounts[otherId2] = 1;
+        await setDoc(convRef, { id: convId, participants, itemTitle: itemTitle || '', lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unreadCounts });
       }
 
       const otherId = participants.find(p => p !== from.id);

@@ -387,7 +387,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             return (
               <div
                 key={c.id}
-                onClick={() => { setActiveConv(c); setShowCoord(false); }}
+                onClick={() => { setActiveConv(c); setShowCoord(false); ChatService.resetUnread(c.id, currentUser?.id); }}
                 style={{ padding: '13px 16px', borderBottom: '1px solid #F5F5F5', cursor: 'pointer', background: isActive ? theme.primary + '0D' : '#fff', display: 'flex', alignItems: 'center', gap: 10, borderLeft: isActive ? '3px solid ' + theme.primary : '3px solid transparent', transition: 'background 0.12s' }}
               >
                 <div style={{ position: 'relative', flexShrink: 0 }}>
@@ -404,8 +404,8 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                     {c.lastMsg || 'Sin mensajes aún'}
                   </div>
                 </div>
-                {(c.unread || 0) > 0 && (
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: theme.primary, color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{c.unread}</div>
+                {(c.unreadCounts?.[currentUser?.id] || 0) > 0 && (
+                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: theme.primary, color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{c.unreadCounts[currentUser.id]}</div>
                 )}
               </div>
             );
@@ -517,11 +517,27 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             {msgs.map((m, i) => {
               const isMe = m.fromId === currentUser?.id || m.fromId === 'demo_joel';
               const isSystem = m.isSystem || m.fromId === 'system';
-              if (isSystem) return (
-                <div key={m.id || i} style={{ textAlign: 'center', padding: '4px 0' }}>
-                  <span style={{ background: '#E8F5E9', color: '#2E7D32', fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 100, display: 'inline-block' }}>{m.text}</span>
-                </div>
-              );
+              if (isSystem) {
+                // Trade confirmation request — show action buttons for the other participant
+                if (m.isTradeConfirm && m.requesterId !== currentUser?.id) {
+                  return (
+                    <div key={m.id || i} style={{ textAlign: 'center', padding: '8px 0' }}>
+                      <div style={{ display: 'inline-block', background: '#FFF8E1', border: '1.5px solid #FFE082', borderRadius: 18, padding: '14px 20px', maxWidth: 320 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#795548', marginBottom: 10 }}>{m.text}</div>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                          <button onClick={() => setShowTradeComplete(true)} style={{ padding: '8px 16px', background: '#2E7D32', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✅ Confirmar trueque</button>
+                          <button onClick={() => { setReportTab('estafa'); setShowReport(true); }} style={{ padding: '8px 16px', background: '#E53935', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>🚨 Reportar</button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={m.id || i} style={{ textAlign: 'center', padding: '4px 0' }}>
+                    <span style={{ background: '#E8F5E9', color: '#2E7D32', fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 100, display: 'inline-block' }}>{m.text}</span>
+                  </div>
+                );
+              }
               return (
                 <div key={m.id || i} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 8 }}>
                   {!isMe && <TAvatar name={m.fromName || 'U'} color={m.fromColor || '#6DBE7E'} size={28} />}
