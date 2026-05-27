@@ -35,7 +35,7 @@ export const UsersService = {
       } catch (_) {
         callback(DB.get('users') || []);
       }
-      if (!stopped) timer = setTimeout(poll, 5000);
+      if (!stopped) timer = setTimeout(poll, 2000);
     };
 
     // Small delay to let Firebase Auth restore persisted session first

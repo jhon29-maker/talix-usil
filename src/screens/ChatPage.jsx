@@ -106,17 +106,27 @@ export default function ChatPage({ currentUser, theme, showToast }) {
     return allUsers.find(u => u.id === otherId)?.avatarColor || '#6DBE7E';
   };
 
-  const createNewChat = async () => {
-    if (!newChatUser.trim()) return;
+  const createNewChat = () => {
+    if (!newChatTarget) { showToast('Selecciona un usuario de la lista', 'error'); return; }
     const target = newChatTarget;
-    if (!target) { showToast('Selecciona un usuario de la lista', 'error'); return; }
     const convId = ChatService.getConversationId(currentUser.id, target.id);
     const participants = [currentUser.id, target.id];
-    // Send a first system message to create the conversation in Firestore
-    await ChatService.sendMessage(convId, currentUser, '👋 ¡Hola! Quiero iniciar un trueque contigo.', participants, newChatTopic || 'Nuevo chat');
+    const topic = newChatTopic || 'Nuevo chat';
+
+    // Navigate immediately without waiting for Firestore
+    const newConv = {
+      id: convId, participants, itemTitle: topic,
+      participantNames: { [currentUser.id]: currentUser.displayName, [target.id]: target.displayName },
+      lastMsg: '👋 ¡Hola! Quiero iniciar un trueque contigo.',
+      lastTime: new Date().toISOString(), unread: 0,
+    };
+    setActiveConv(newConv);
     setShowNewChat(false);
     setNewChatUser(''); setNewChatTopic(''); setNewChatTarget(null);
     showToast('¡Conversación creada!', 'success');
+
+    // Write to Firestore in background
+    ChatService.sendMessage(convId, currentUser, '👋 ¡Hola! Quiero iniciar un trueque contigo.', participants, topic);
   };
 
   const filteredUsers = newChatUser.length >= 2

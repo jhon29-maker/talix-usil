@@ -26,13 +26,30 @@ const BG_BY_CATEGORY = {
   Accesorios: '#ECEFF1',
 };
 
+let _seeded = false;
+
 export const ItemsService = {
   getAll: (cb) => {
     if (FIREBASE_READY) {
       const q = query(collection(db, 'items'), orderBy('createdAt', 'desc'));
       return onSnapshot(q, (snap) => {
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        cb(items);
+        if (items.length === 0 && !_seeded) {
+          _seeded = true;
+          // Seed demo items to Firestore so carousel has content
+          TALIX_ITEMS.forEach(i => {
+            addDoc(collection(db, 'items'), {
+              title: i.title, category: i.category, condition: i.condition,
+              description: i.description, want: i.want, photo: null,
+              userId: i.userId, user: i.user, avatarColor: i.avatarColor,
+              faculty: i.faculty, co2: i.co2, bgColor: i.bgColor,
+              posted: 'hace 1d', likes: [], proposals: [], status: 'activo',
+              createdAt: serverTimestamp(), isDemo: true,
+            }).catch(() => {});
+          });
+        } else {
+          cb(items);
+        }
       });
     }
 
