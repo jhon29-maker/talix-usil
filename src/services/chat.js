@@ -4,12 +4,12 @@ import {
   addDoc,
   setDoc,
   updateDoc,
-  onSnapshot,
   query,
   orderBy,
   where,
   serverTimestamp,
   getDoc,
+  getDocs,
 } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { FIREBASE_READY, db, storage } from '../config/firebase';
@@ -21,21 +21,26 @@ export const ChatService = {
 
   getConversations: (userId, cb) => {
     if (FIREBASE_READY) {
-      // No orderBy to avoid composite index requirement — sort client-side
-      const q = query(
-        collection(db, 'conversations'),
-        where('participants', 'array-contains', userId)
-      );
-      return onSnapshot(q, (snap) => {
-        const sorted = snap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => {
-            const ta = a.lastTime ? new Date(a.lastTime).getTime() : 0;
-            const tb = b.lastTime ? new Date(b.lastTime).getTime() : 0;
-            return tb - ta;
-          });
-        cb(sorted);
-      });
+      let stopped = false;
+      let timer = null;
+      const q = query(collection(db, 'conversations'), where('participants', 'array-contains', userId));
+      const poll = async () => {
+        if (stopped) return;
+        try {
+          const snap = await getDocs(q);
+          const sorted = snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => {
+              const ta = a.lastTime ? new Date(a.lastTime).getTime() : 0;
+              const tb = b.lastTime ? new Date(b.lastTime).getTime() : 0;
+              return tb - ta;
+            });
+          cb(sorted);
+        } catch (_) {}
+        if (!stopped) timer = setTimeout(poll, 2000);
+      };
+      poll();
+      return () => { stopped = true; if (timer) clearTimeout(timer); };
     }
     return DB.subscribe('conversations', (convos) => {
       cb((convos || []).filter(c => c.participants?.includes(userId)));
@@ -44,13 +49,19 @@ export const ChatService = {
 
   getMessages: (convId, cb) => {
     if (FIREBASE_READY) {
-      const q = query(
-        collection(db, 'conversations', convId, 'messages'),
-        orderBy('createdAt', 'asc')
-      );
-      return onSnapshot(q, (snap) => {
-        cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      });
+      let stopped = false;
+      let timer = null;
+      const q = query(collection(db, 'conversations', convId, 'messages'), orderBy('createdAt', 'asc'));
+      const poll = async () => {
+        if (stopped) return;
+        try {
+          const snap = await getDocs(q);
+          cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch (_) {}
+        if (!stopped) timer = setTimeout(poll, 2000);
+      };
+      poll();
+      return () => { stopped = true; if (timer) clearTimeout(timer); };
     }
     return DB.subscribe('msgs_' + convId, (msgs) => cb(msgs || []));
   },
