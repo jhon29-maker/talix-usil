@@ -77,21 +77,39 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   useEffect(() => {
     if (!currentUser) return;
     return ChatService.getConversations(currentUser.id, (sorted) => {
-      const enriched = sorted.map(conv => {
+      // Use functional update so we can merge with previous state (never lose known-good names)
+      setConvos(prev => sorted.map(conv => {
+        const existing = prev.find(c => c.id === conv.id);
+        // Merge: keep any names already known (prev state), overlay with Firestore data
+        const names = { ...(existing?.participantNames || {}), ...(conv.participantNames || {}) };
         const otherId = (conv.participants || []).find(p => p !== currentUser.id);
-        if (!otherId) return conv;
-        if (conv.participantNames?.[otherId]) return conv; // already has the name
-        const user = allUsersRef.current.find(u => u.id === otherId);
-        if (!user) return conv;
-        const names = { ...(conv.participantNames || {}), [otherId]: user.displayName, [currentUser.id]: currentUser.displayName };
-        // Patch Firestore silently so future polls have the name
-        if (FIREBASE_READY) updateDoc(doc(db, 'conversations', conv.id), { participantNames: names }).catch(() => {});
-        return { ...conv, participantNames: names };
-      });
-      setConvos(enriched);
-      if (!activeConvRef.current && enriched.length > 0) setActiveConv(enriched[0]);
+        if (otherId && !names[otherId]) {
+          const user = allUsersRef.current.find(u => u.id === otherId);
+          if (user) {
+            names[otherId] = user.displayName;
+            names[currentUser.id] = currentUser.displayName;
+            if (FIREBASE_READY) updateDoc(doc(db, 'conversations', conv.id), { participantNames: names }).catch(() => {});
+          }
+        }
+        return Object.keys(names).length > 0 ? { ...conv, participantNames: names } : conv;
+      }));
+      if (!activeConvRef.current && sorted.length > 0) setActiveConv(sorted[0]);
     });
   }, [currentUser]);
+
+  // Re-enrich conversations whenever allUsersList loads/updates
+  useEffect(() => {
+    if (!allUsersList.length || !currentUser) return;
+    setConvos(prev => prev.map(conv => {
+      const otherId = (conv.participants || []).find(p => p !== currentUser.id);
+      if (!otherId || conv.participantNames?.[otherId]) return conv;
+      const user = allUsersList.find(u => u.id === otherId);
+      if (!user) return conv;
+      const names = { ...(conv.participantNames || {}), [otherId]: user.displayName, [currentUser.id]: currentUser.displayName };
+      if (FIREBASE_READY) updateDoc(doc(db, 'conversations', conv.id), { participantNames: names }).catch(() => {});
+      return { ...conv, participantNames: names };
+    }));
+  }, [allUsersList, currentUser]);
 
   useEffect(() => {
     if (!activeConv) return;
