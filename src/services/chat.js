@@ -5,7 +5,6 @@ import {
   setDoc,
   updateDoc,
   query,
-  orderBy,
   where,
   serverTimestamp,
   getDoc,
@@ -37,7 +36,7 @@ export const ChatService = {
             });
           cb(sorted);
         } catch (_) {}
-        if (!stopped) timer = setTimeout(poll, 2000);
+        if (!stopped) timer = setTimeout(poll, 1000);
       };
       poll();
       return () => { stopped = true; if (timer) clearTimeout(timer); };
@@ -51,14 +50,19 @@ export const ChatService = {
     if (FIREBASE_READY) {
       let stopped = false;
       let timer = null;
-      const q = query(collection(db, 'conversations', convId, 'messages'), orderBy('createdAt', 'asc'));
+      const q = query(collection(db, 'conversations', convId, 'messages'));
       const poll = async () => {
         if (stopped) return;
         try {
           const snap = await getDocs(q);
-          cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => {
+            const ta = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+            const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+            return ta - tb;
+          });
+          cb(msgs);
         } catch (_) {}
-        if (!stopped) timer = setTimeout(poll, 2000);
+        if (!stopped) timer = setTimeout(poll, 1000);
       };
       poll();
       return () => { stopped = true; if (timer) clearTimeout(timer); };
