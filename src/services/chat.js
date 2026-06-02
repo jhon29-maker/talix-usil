@@ -110,7 +110,7 @@ export const ChatService = {
     NotificationsService.add(otherId, { icon: '🎉', text: `${fromUser.displayName} confirmó el trueque con ${itemTitle || 'contigo'}. ¡Confirma tu parte!`, time: 'ahora' });
   },
 
-  sendMessage: async (convId, from, text, participants, itemTitle, imageUrl = null) => {
+  sendMessage: async (convId, from, text, participants, itemTitle, imageUrl = null, participantNames = null) => {
     const msg = {
       convId,
       fromId: from.id,
@@ -136,7 +136,9 @@ export const ChatService = {
       } else {
         const unreadCounts = {};
         if (otherId2) unreadCounts[otherId2] = 1;
-        await setDoc(convRef, { id: convId, participants, itemTitle: itemTitle || '', lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unreadCounts });
+        const convData = { id: convId, participants, itemTitle: itemTitle || '', lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unreadCounts };
+        if (participantNames) convData.participantNames = participantNames;
+        await setDoc(convRef, convData);
       }
 
       const otherId = participants.find(p => p !== from.id);

@@ -168,19 +168,19 @@ export default function ChatPage({ currentUser, theme, showToast }) {
     if (!conv || !currentUser) return 'Usuario';
     if (conv.participantNames) {
       const otherId = Object.keys(conv.participantNames).find(k => k !== currentUser.id && k !== 'demo_joel');
-      if (otherId) return conv.participantNames[otherId];
+      if (otherId && conv.participantNames[otherId]) return conv.participantNames[otherId];
     }
-    const allUsers = DB.get('users') || [];
     const otherId = (conv.participants || []).find(p => p !== currentUser.id);
-    return allUsers.find(u => u.id === otherId)?.displayName || 'Usuario TALIX';
+    const found = allUsersList.find(u => u.id === otherId) || (DB.get('users') || []).find(u => u.id === otherId);
+    return found?.displayName || 'Usuario TALIX';
   };
 
   const getOtherColor = (conv) => {
     const palette = { demo_ana: '#6DBE7E', demo_carlos: '#5B9BD5', demo_lucia: '#F5A623' };
     const otherId = (conv?.participants || []).find(p => p !== currentUser?.id && p !== 'demo_joel');
     if (palette[otherId]) return palette[otherId];
-    const allUsers = DB.get('users') || [];
-    return allUsers.find(u => u.id === otherId)?.avatarColor || '#6DBE7E';
+    const found = allUsersList.find(u => u.id === otherId) || (DB.get('users') || []).find(u => u.id === otherId);
+    return found?.avatarColor || '#6DBE7E';
   };
 
   const createNewChat = () => {
@@ -202,8 +202,8 @@ export default function ChatPage({ currentUser, theme, showToast }) {
     setNewChatUser(''); setNewChatTopic(''); setNewChatTarget(null);
     showToast('¡Conversación creada!', 'success');
 
-    // Write to Firestore in background
-    ChatService.sendMessage(convId, currentUser, '👋 ¡Hola! Quiero iniciar un trueque contigo.', participants, topic);
+    // Write to Firestore in background (include names so other side shows correct name)
+    ChatService.sendMessage(convId, currentUser, '👋 ¡Hola! Quiero iniciar un trueque contigo.', participants, topic, null, { [currentUser.id]: currentUser.displayName, [target.id]: target.displayName });
   };
 
   const filteredUsers = newChatUser.length >= 2
