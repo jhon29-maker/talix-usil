@@ -197,13 +197,21 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
   const getOtherName = (conv) => {
     if (!conv || !currentUser) return 'Usuario';
+    // 1. participantNames in conversation doc
     if (conv.participantNames) {
       const otherId = Object.keys(conv.participantNames).find(k => k !== currentUser.id && k !== 'demo_joel');
       if (otherId && conv.participantNames[otherId]) return conv.participantNames[otherId];
     }
     const otherId = (conv.participants || []).find(p => p !== currentUser.id);
+    // 2. live users list from Firestore
     const found = allUsersList.find(u => u.id === otherId) || (DB.get('users') || []).find(u => u.id === otherId);
-    return found?.displayName || 'Usuario TALIX';
+    if (found?.displayName) return found.displayName;
+    // 3. last resort: grab name from loaded messages of this conversation
+    if (activeConv?.id === conv.id && msgs.length > 0) {
+      const otherMsg = msgs.find(m => m.fromId !== currentUser.id && m.fromId !== 'system' && m.fromName);
+      if (otherMsg?.fromName) return otherMsg.fromName;
+    }
+    return '...';
   };
 
   const getOtherColor = (conv) => {

@@ -102,7 +102,7 @@ export const ChatService = {
         const snap = await getDoc(convRef);
         const unreadCounts = snap.exists() ? (snap.data().unreadCounts || {}) : {};
         unreadCounts[otherId] = (unreadCounts[otherId] || 0) + 1;
-        await setDoc(convRef, { lastMsg: msg.text, lastTime: now, unreadCounts }, { merge: true });
+        await setDoc(convRef, { lastMsg: msg.text, lastTime: now, unreadCounts, [`participantNames.${fromUser.id}`]: fromUser.displayName }, { merge: true });
       } catch (_) {}
     } else {
       DB.push('msgs_' + convId, msg);
@@ -132,12 +132,18 @@ export const ChatService = {
       if (snap.exists()) {
         const unreadCounts = snap.data().unreadCounts || {};
         if (otherId2) unreadCounts[otherId2] = (unreadCounts[otherId2] || 0) + 1;
-        await updateDoc(convRef, { lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unreadCounts });
+        // Always save sender name so other side can always display correct name
+        await updateDoc(convRef, {
+          lastMsg: imageUrl ? '📷 Foto' : text,
+          lastTime: now,
+          unreadCounts,
+          [`participantNames.${from.id}`]: from.displayName,
+        });
       } else {
         const unreadCounts = {};
         if (otherId2) unreadCounts[otherId2] = 1;
-        const convData = { id: convId, participants, itemTitle: itemTitle || '', lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unreadCounts };
-        if (participantNames) convData.participantNames = participantNames;
+        const names = participantNames || { [from.id]: from.displayName };
+        const convData = { id: convId, participants, itemTitle: itemTitle || '', lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unreadCounts, participantNames: names };
         await setDoc(convRef, convData);
       }
 
