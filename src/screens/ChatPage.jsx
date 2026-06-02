@@ -455,7 +455,9 @@ export default function ChatPage({ currentUser, theme, showToast }) {
               <div
                 key={c.id}
                 onClick={() => { setActiveConv(c); setShowCoord(false); ChatService.resetUnread(c.id, currentUser?.id); }}
-                style={{ padding: '13px 16px', borderBottom: '1px solid #F5F5F5', cursor: 'pointer', background: isActive ? theme.primary + '0D' : '#fff', display: 'flex', alignItems: 'center', gap: 10, borderLeft: isActive ? '3px solid ' + theme.primary : '3px solid transparent', transition: 'background 0.12s' }}
+                style={{ padding: '13px 16px', borderBottom: '1px solid #F5F5F5', cursor: 'pointer', background: isActive ? theme.primary + '0D' : '#fff', display: 'flex', alignItems: 'center', gap: 10, borderLeft: isActive ? '3px solid ' + theme.primary : '3px solid transparent', transition: 'background 0.12s', position: 'relative' }}
+                onMouseEnter={e => { const btn = e.currentTarget.querySelector('.del-btn'); if (btn) btn.style.display = 'flex'; }}
+                onMouseLeave={e => { const btn = e.currentTarget.querySelector('.del-btn'); if (btn) btn.style.display = 'none'; }}
               >
                 <div style={{ position: 'relative', flexShrink: 0 }}>
                   <TAvatar name={getOtherName(c)} color={getOtherColor(c)} size={40} />
@@ -474,6 +476,12 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                 {(c.unreadCounts?.[currentUser?.id] || 0) > 0 && (
                   <div style={{ width: 18, height: 18, borderRadius: '50%', background: theme.primary, color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{c.unreadCounts[currentUser.id]}</div>
                 )}
+                <button
+                  className="del-btn"
+                  onClick={e => { e.stopPropagation(); ChatService.deleteConversation(c.id, currentUser.id); if (activeConv?.id === c.id) setActiveConv(null); }}
+                  style={{ display: 'none', position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 26, height: 26, borderRadius: '50%', background: '#FFEBEE', border: 'none', color: '#E53935', fontSize: 13, cursor: 'pointer', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                  title="Eliminar chat"
+                >🗑</button>
               </div>
             );
           })}

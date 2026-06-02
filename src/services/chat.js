@@ -9,6 +9,7 @@ import {
   serverTimestamp,
   getDoc,
   getDocs,
+  increment,
 } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { FIREBASE_READY, db, storage } from '../config/firebase';
@@ -29,6 +30,7 @@ export const ChatService = {
           const snap = await getDocs(q);
           const sorted = snap.docs
             .map(d => ({ id: d.id, ...d.data() }))
+            .filter(c => !c.deletedFor?.[userId])
             .sort((a, b) => {
               const ta = a.lastTime ? new Date(a.lastTime).getTime() : 0;
               const tb = b.lastTime ? new Date(b.lastTime).getTime() : 0;
@@ -110,6 +112,16 @@ export const ChatService = {
     NotificationsService.add(otherId, { icon: '🎉', text: `${fromUser.displayName} confirmó el trueque con ${itemTitle || 'contigo'}. ¡Confirma tu parte!`, time: 'ahora' });
   },
 
+  deleteConversation: async (convId, userId) => {
+    if (FIREBASE_READY) {
+      try {
+        await updateDoc(doc(db, 'conversations', convId), { [`deletedFor.${userId}`]: true });
+      } catch (_) {}
+    }
+    const convos = DB.get('conversations') || [];
+    DB.set('conversations', convos.filter(c => c.id !== convId));
+  },
+
   sendMessage: async (convId, from, text, participants, itemTitle, imageUrl = null, participantNames = null) => {
     const msg = {
       convId,
@@ -123,33 +135,26 @@ export const ChatService = {
     };
 
     if (FIREBASE_READY) {
+      const now = new Date().toISOString();
+      const otherId = participants.find(p => p !== from.id);
+      // Use setDoc+merge+increment — creates doc if missing, updates if exists. No getDoc needed.
+      const convUpdate = {
+        id: convId,
+        participants,
+        itemTitle: itemTitle || '',
+        lastMsg: imageUrl ? '📷 Foto' : text,
+        lastTime: now,
+        lastMsgFromId: from.id,
+        lastMsgFromName: from.displayName,
+        [`participantNames.${from.id}`]: from.displayName,
+      };
+      if (participantNames) {
+        Object.entries(participantNames).forEach(([k, v]) => { convUpdate[`participantNames.${k}`] = v; });
+      }
+      if (otherId) convUpdate[`unreadCounts.${otherId}`] = increment(1);
+      await setDoc(doc(db, 'conversations', convId), convUpdate, { merge: true });
       await addDoc(collection(db, 'conversations', convId, 'messages'), msg);
 
-      const convRef = doc(db, 'conversations', convId);
-      const snap = await getDoc(convRef);
-      const now = new Date().toISOString();
-      const otherId2 = participants.find(p => p !== from.id);
-      if (snap.exists()) {
-        const unreadCounts = snap.data().unreadCounts || {};
-        if (otherId2) unreadCounts[otherId2] = (unreadCounts[otherId2] || 0) + 1;
-        // Always save sender name + lastMsg metadata so other side can display correct name
-        await updateDoc(convRef, {
-          lastMsg: imageUrl ? '📷 Foto' : text,
-          lastTime: now,
-          unreadCounts,
-          lastMsgFromId: from.id,
-          lastMsgFromName: from.displayName,
-          [`participantNames.${from.id}`]: from.displayName,
-        });
-      } else {
-        const unreadCounts = {};
-        if (otherId2) unreadCounts[otherId2] = 1;
-        const names = participantNames || { [from.id]: from.displayName };
-        const convData = { id: convId, participants, itemTitle: itemTitle || '', lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unreadCounts, participantNames: names, lastMsgFromId: from.id, lastMsgFromName: from.displayName };
-        await setDoc(convRef, convData);
-      }
-
-      const otherId = participants.find(p => p !== from.id);
       NotificationsService.add(otherId, {
         icon: '💬',
         text: `${from.displayName}: ${imageUrl ? '📷 Foto' : text.slice(0, 40)}`,
