@@ -56,11 +56,16 @@ function App() {
   useEffect(() => { localStorage.setItem('talix_page', page); }, [page]);
   useEffect(() => { localStorage.setItem('talix_tweaks', JSON.stringify(tweaks)); }, [tweaks]);
 
-  // Wait for Firebase Auth to restore session, then ensure Firestore profile exists
+  // Wait for Firebase Auth to restore session, ensure profile, then sync currentUser id
   useEffect(() => {
     if (!FIREBASE_READY || !loggedIn) return;
-    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) Auth.ensureFirestoreProfile();
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        await Auth.ensureFirestoreProfile();
+        // Re-read from localStorage so currentUser.id = Firebase UID
+        const updated = Auth.getCurrentUser();
+        if (updated) setCurrentUser(updated);
+      }
     });
     return () => unsub();
   }, [loggedIn]);

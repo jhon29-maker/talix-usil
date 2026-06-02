@@ -189,27 +189,41 @@ export const Auth = {
   ensureFirestoreProfile: async () => {
     if (!FIREBASE_READY || !auth.currentUser) return;
     try {
+      const firebaseUid = auth.currentUser.uid;
+
       // Retry pending profile from failed registration
       const pending = localStorage.getItem('talix_pending_profile');
       if (pending) {
         try {
           const { uid, profile } = JSON.parse(pending);
-          if (uid === auth.currentUser.uid) {
+          if (uid === firebaseUid) {
             await setDoc(doc(db, 'users', uid), profile);
             localStorage.removeItem('talix_pending_profile');
           }
         } catch (_) {}
       }
 
-      const snap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      const snap = await getDoc(doc(db, 'users', firebaseUid));
+      let profile;
       if (!snap.exists()) {
         const localUser = Auth.getCurrentUser();
-        const profile = localUser
-          ? { ...localUser, id: auth.currentUser.uid }
-          : buildUserProfile(auth.currentUser.uid, auth.currentUser.email, auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Usuario', '');
-        await setDoc(doc(db, 'users', auth.currentUser.uid), profile);
-        if (!localUser) localStorage.setItem('talix_current_user', JSON.stringify(profile));
+        profile = localUser
+          ? { ...localUser, id: firebaseUid }
+          : buildUserProfile(firebaseUid, auth.currentUser.email, auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Usuario', '');
+        await setDoc(doc(db, 'users', firebaseUid), profile);
+      } else {
+        profile = snap.data();
       }
+
+      // CRITICAL: always make sure localStorage currentUser has the Firebase UID
+      const localUser = Auth.getCurrentUser();
+      if (localUser && localUser.id !== firebaseUid) {
+        const corrected = { ...localUser, ...profile, id: firebaseUid };
+        localStorage.setItem('talix_current_user', JSON.stringify(corrected));
+      } else if (!localUser) {
+        localStorage.setItem('talix_current_user', JSON.stringify({ ...profile, id: firebaseUid }));
+      }
+
       // Always sync all users to localStorage
       const allSnap = await getDocs(collection(db, 'users'));
       DB.set('users', allSnap.docs.map(d => ({ id: d.id, ...d.data() })));
