@@ -10,6 +10,7 @@ import {
   getDoc,
   getDocs,
   increment,
+  arrayUnion,
 } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { FIREBASE_READY, db, storage } from '../config/firebase';
@@ -27,9 +28,26 @@ export const ChatService = {
       const poll = async () => {
         if (stopped) return;
         try {
+          // Primary: query by participants array
           const snap = await getDocs(q);
-          const sorted = snap.docs
-            .map(d => ({ id: d.id, ...d.data() }))
+          const fromQuery = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+          // Secondary: fetch conversations stored directly on user doc (catches new chats)
+          let fromUserDoc = [];
+          try {
+            const userSnap = await getDoc(doc(db, 'users', userId));
+            const convIds = userSnap.data()?.conversationIds || [];
+            const extras = await Promise.all(
+              convIds.filter(cid => !fromQuery.find(c => c.id === cid))
+                     .map(cid => getDoc(doc(db, 'conversations', cid)))
+            );
+            fromUserDoc = extras.filter(d => d.exists()).map(d => ({ id: d.id, ...d.data() }));
+          } catch (_) {}
+
+          const all = [...fromQuery, ...fromUserDoc];
+          const seen = new Set();
+          const unique = all.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+          const sorted = unique
             .filter(c => !c.deletedFor?.[userId])
             .sort((a, b) => {
               const ta = a.lastTime ? new Date(a.lastTime).getTime() : 0;
@@ -154,6 +172,11 @@ export const ChatService = {
       if (otherId) convUpdate[`unreadCounts.${otherId}`] = increment(1);
       await setDoc(doc(db, 'conversations', convId), convUpdate, { merge: true });
       await addDoc(collection(db, 'conversations', convId, 'messages'), msg);
+
+      // Store convId on every participant's user doc so they always find this conversation
+      participants.forEach(pid => {
+        updateDoc(doc(db, 'users', pid), { conversationIds: arrayUnion(convId) }).catch(() => {});
+      });
 
       NotificationsService.add(otherId, {
         icon: '💬',
