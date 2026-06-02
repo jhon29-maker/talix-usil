@@ -4,7 +4,7 @@ import { UsersService } from '../services/users';
 import { ChatService } from '../services/chat';
 import { ModerationService } from '../services/moderation';
 import { FIREBASE_READY, db } from '../config/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { TAvatar, TButton } from '../components/ui';
 import TradeCompleteModal from './TradeCompleteModal';
 
@@ -65,8 +65,10 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const activeConvRef = useRef(null);
+  const allUsersRef = useRef([]);
 
   useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
+  useEffect(() => { allUsersRef.current = allUsersList; }, [allUsersList]);
 
   useEffect(() => {
     return UsersService.subscribe(setAllUsersList);
@@ -75,8 +77,19 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   useEffect(() => {
     if (!currentUser) return;
     return ChatService.getConversations(currentUser.id, (sorted) => {
-      setConvos(sorted);
-      if (!activeConvRef.current && sorted.length > 0) setActiveConv(sorted[0]);
+      const enriched = sorted.map(conv => {
+        const otherId = (conv.participants || []).find(p => p !== currentUser.id);
+        if (!otherId) return conv;
+        if (conv.participantNames?.[otherId]) return conv; // already has the name
+        const user = allUsersRef.current.find(u => u.id === otherId);
+        if (!user) return conv;
+        const names = { ...(conv.participantNames || {}), [otherId]: user.displayName, [currentUser.id]: currentUser.displayName };
+        // Patch Firestore silently so future polls have the name
+        if (FIREBASE_READY) updateDoc(doc(db, 'conversations', conv.id), { participantNames: names }).catch(() => {});
+        return { ...conv, participantNames: names };
+      });
+      setConvos(enriched);
+      if (!activeConvRef.current && enriched.length > 0) setActiveConv(enriched[0]);
     });
   }, [currentUser]);
 
