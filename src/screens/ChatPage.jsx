@@ -139,7 +139,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
       setTimeout(() => setBlockedMsg(''), 3500);
       return;
     }
-    ChatService.sendMessage(activeConv.id, currentUser, input, activeConv.participants || [currentUser.id], activeConv.itemTitle);
+    ChatService.sendMessage(activeConv.id, currentUser, input, activeConv.participants || [currentUser.id], activeConv.itemTitle, null, activeConv.participantNames || null);
     setInput('');
     setTimeout(() => inputRef.current?.focus(), 50);
   };
@@ -196,20 +196,24 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   };
 
   const getOtherName = (conv) => {
-    if (!conv || !currentUser) return 'Usuario';
-    // 1. participantNames in conversation doc
+    if (!conv || !currentUser) return '...';
+    // 1. Last message was from the other person — most reliable for old convos
+    if (conv.lastMsgFromId && conv.lastMsgFromId !== currentUser.id && conv.lastMsgFromName) {
+      return conv.lastMsgFromName;
+    }
+    // 2. participantNames stored in Firestore doc
     if (conv.participantNames) {
       const otherId = Object.keys(conv.participantNames).find(k => k !== currentUser.id && k !== 'demo_joel');
       if (otherId && conv.participantNames[otherId]) return conv.participantNames[otherId];
     }
+    // 3. Live Firestore users list
     const otherId = (conv.participants || []).find(p => p !== currentUser.id);
-    // 2. live users list from Firestore
     const found = allUsersList.find(u => u.id === otherId) || (DB.get('users') || []).find(u => u.id === otherId);
     if (found?.displayName) return found.displayName;
-    // 3. last resort: grab name from loaded messages of this conversation
+    // 4. Loaded messages of active conversation
     if (activeConv?.id === conv.id && msgs.length > 0) {
-      const otherMsg = msgs.find(m => m.fromId !== currentUser.id && m.fromId !== 'system' && m.fromName);
-      if (otherMsg?.fromName) return otherMsg.fromName;
+      const m = msgs.find(x => x.fromId !== currentUser.id && x.fromId !== 'system' && x.fromName);
+      if (m?.fromName) return m.fromName;
     }
     return '...';
   };

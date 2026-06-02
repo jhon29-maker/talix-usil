@@ -132,18 +132,20 @@ export const ChatService = {
       if (snap.exists()) {
         const unreadCounts = snap.data().unreadCounts || {};
         if (otherId2) unreadCounts[otherId2] = (unreadCounts[otherId2] || 0) + 1;
-        // Always save sender name so other side can always display correct name
+        // Always save sender name + lastMsg metadata so other side can display correct name
         await updateDoc(convRef, {
           lastMsg: imageUrl ? '📷 Foto' : text,
           lastTime: now,
           unreadCounts,
+          lastMsgFromId: from.id,
+          lastMsgFromName: from.displayName,
           [`participantNames.${from.id}`]: from.displayName,
         });
       } else {
         const unreadCounts = {};
         if (otherId2) unreadCounts[otherId2] = 1;
         const names = participantNames || { [from.id]: from.displayName };
-        const convData = { id: convId, participants, itemTitle: itemTitle || '', lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unreadCounts, participantNames: names };
+        const convData = { id: convId, participants, itemTitle: itemTitle || '', lastMsg: imageUrl ? '📷 Foto' : text, lastTime: now, unreadCounts, participantNames: names, lastMsgFromId: from.id, lastMsgFromName: from.displayName };
         await setDoc(convRef, convData);
       }
 
