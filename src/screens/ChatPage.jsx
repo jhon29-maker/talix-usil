@@ -4,7 +4,7 @@ import { UsersService } from '../services/users';
 import { ChatService } from '../services/chat';
 import { ModerationService } from '../services/moderation';
 import { FIREBASE_READY, db } from '../config/firebase';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { TAvatar, TButton } from '../components/ui';
 import TradeCompleteModal from './TradeCompleteModal';
 
@@ -110,6 +110,30 @@ export default function ChatPage({ currentUser, theme, showToast }) {
       return { ...conv, participantNames: names };
     }));
   }, [allUsersList, currentUser]);
+
+  // Proactively resolve names for convos that still show "..." by loading their messages
+  const resolvedRef = useRef(new Set());
+  useEffect(() => {
+    if (!currentUser || !FIREBASE_READY) return;
+    const unknowns = convos.filter(c => {
+      if (resolvedRef.current.has(c.id)) return false;
+      if (c.lastMsgFromId && c.lastMsgFromId !== currentUser.id && c.lastMsgFromName) return false;
+      if (c.participantNames && Object.entries(c.participantNames).some(([k, v]) => k !== currentUser.id && v)) return false;
+      return true;
+    });
+    if (!unknowns.length) return;
+    unknowns.forEach(async conv => {
+      resolvedRef.current.add(conv.id);
+      try {
+        const snap = await getDocs(collection(db, 'conversations', conv.id, 'messages'));
+        const otherMsg = snap.docs.map(d => d.data()).find(m => m.fromId !== currentUser.id && m.fromId !== 'system' && m.fromName);
+        if (!otherMsg) return;
+        const updates = { lastMsgFromId: otherMsg.fromId, lastMsgFromName: otherMsg.fromName, [`participantNames.${otherMsg.fromId}`]: otherMsg.fromName };
+        updateDoc(doc(db, 'conversations', conv.id), updates).catch(() => {});
+        setConvos(prev => prev.map(c => c.id === conv.id ? { ...c, ...updates } : c));
+      } catch (_) {}
+    });
+  }, [convos.length, currentUser]);
 
   useEffect(() => {
     if (!activeConv) return;
