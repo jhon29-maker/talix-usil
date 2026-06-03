@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import * as nsfwjs from 'nsfwjs';
 import { DB } from '../services/db';
 import { UsersService } from '../services/users';
 import { ChatService } from '../services/chat';
@@ -10,6 +11,27 @@ import TradeCompleteModal from './TradeCompleteModal';
 
 const QUICK = ['¿Cuándo puedes?', '¿Dónde nos vemos?', '¡Me interesa! 🙌', '¿Está disponible aún?'];
 const ECO_SPOTS = ['Biblioteca Central USIL', 'Cafetería Principal', 'Entrada Principal', 'Sala de Estudio B2', 'Patio Central', 'Terraza USIL', 'Edificio F – Lobby'];
+
+// NSFW classifier — nsfwjs already in project dependencies
+let _nsfwPromise = null;
+function loadNsfwClassifier() {
+  if (_nsfwPromise) return _nsfwPromise;
+  _nsfwPromise = nsfwjs.load().catch(() => null);
+  return _nsfwPromise;
+}
+async function checkImageNSFW(dataUrl) {
+  try {
+    const model = await Promise.race([loadNsfwClassifier(), new Promise(r => setTimeout(() => r(null), 12000))]);
+    if (!model) return false;
+    const img = new Image();
+    img.src = dataUrl;
+    await new Promise(r => { img.onload = r; img.onerror = r; });
+    const preds = await model.classify(img);
+    const porn = preds.find(p => p.className === 'Porn')?.probability || 0;
+    const hentai = preds.find(p => p.className === 'Hentai')?.probability || 0;
+    return (porn + hentai) > 0.5;
+  } catch { return false; }
+}
 
 // Compress image to max 480px / JPEG 65% — keeps base64 under ~50 KB so it fits in a Firestore doc
 function compressImage(dataUrl) {
@@ -78,6 +100,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const [reportPhoto, setReportPhoto] = useState(null);
   const [sendingReport, setSendingReport] = useState(false);
   const [showMeetupProposalModal, setShowMeetupProposalModal] = useState(false);
+  const [tradeAlertDismissed, setTradeAlertDismissed] = useState(new Set());
   const reportFileRef = useRef(null);
   const seenProposalRef = useRef({});
   const bottomRef = useRef(null);
@@ -94,6 +117,9 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   useEffect(() => {
     return UsersService.subscribe(setAllUsersList);
   }, []);
+
+  // Pre-load NSFW model in background so it's ready when user picks a photo
+  useEffect(() => { loadNsfwClassifier(); }, []);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -215,7 +241,15 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const sendPhoto = async () => {
     if (!photoPreview || !activeConv) return;
     setSendingPhoto(true);
-    // Try Firebase Storage first; if it fails (permissions/config), fall back to inline base64 in Firestore
+    // AI content moderation — block intimate/NSFW images
+    const nsfw = await checkImageNSFW(photoPreview);
+    if (nsfw) {
+      showToast('🚫 Imagen bloqueada: contenido inapropiado detectado por IA', 'error');
+      setPhotoPreview(null);
+      setSendingPhoto(false);
+      return;
+    }
+    // Try Firebase Storage (6s timeout), fall back to inline base64 in Firestore
     let url = await ChatService.uploadPhoto(activeConv.id, photoPreview);
     if (!url) url = await compressImage(photoPreview);
     await ChatService.sendMessage(activeConv.id, currentUser, '', activeConv.participants || [currentUser.id], activeConv.itemTitle, url);
@@ -728,8 +762,8 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             <span style={{ fontSize: 11, color: '#795548', fontWeight: 500 }}>Por tu seguridad, <strong>no compartas números de teléfono</strong> ni coordines fuera de TALIX. Todos los intercambios deben realizarse en los Eco-Spots del campus.</span>
           </div>
 
-          {/* Trade confirm alert banner */}
-          {msgs.some(m => m.isTradeConfirm && m.requesterId !== currentUser?.id) && (
+          {/* Trade confirm alert banner — dismissed per conversation after user responds */}
+          {msgs.some(m => m.isTradeConfirm && m.requesterId !== currentUser?.id) && !tradeAlertDismissed.has(activeConv?.id) && (
             <div style={{ margin: '10px 16px 0', background: 'linear-gradient(135deg, #FFFDE7, #FFF8E1)', border: '2px solid #FFD54F', borderRadius: 18, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 16px rgba(255,193,7,0.25)', flexShrink: 0 }}>
               <div style={{ fontSize: 32, flexShrink: 0 }}>🤝</div>
               <div style={{ flex: 1 }}>
@@ -737,8 +771,9 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                 <div style={{ fontSize: 12, color: '#795548' }}>¿El intercambio se realizó correctamente?</div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                <button onClick={() => setShowTradeComplete(true)} style={{ padding: '9px 16px', background: '#2E7D32', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>✅ Confirmar</button>
-                <button onClick={() => { setReportTab('estafa'); setShowReport(true); }} style={{ padding: '9px 16px', background: '#E53935', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>🚨 Reportar</button>
+                <button onClick={() => { setShowTradeComplete(true); setTradeAlertDismissed(prev => new Set([...prev, activeConv.id])); }} style={{ padding: '9px 16px', background: '#2E7D32', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>✅ Confirmar</button>
+                <button onClick={() => { setReportTab('estafa'); setShowReport(true); setTradeAlertDismissed(prev => new Set([...prev, activeConv.id])); }} style={{ padding: '9px 16px', background: '#E53935', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>🚨 Reportar</button>
+                <button onClick={() => setTradeAlertDismissed(prev => new Set([...prev, activeConv.id]))} style={{ padding: '9px 12px', background: '#EEE', color: '#888', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>✕</button>
               </div>
             </div>
           )}
@@ -758,22 +793,29 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                 <div style={{ fontSize: 14, fontWeight: 500, color: '#AAA' }}>Inicia la conversación con {getOtherName(activeConv)}</div>
               </div>
             )}
-            {msgs.map((m, i) => {
+            {(() => {
+              // Find index of last trade-confirm message for this user (only show action buttons on most recent)
+              const lastTradeConfirmIdx = msgs.reduce((last, m, i) =>
+                m.isTradeConfirm && m.requesterId !== currentUser?.id ? i : last, -1);
+              return msgs.map((m, i) => {
               const isMe = m.fromId === currentUser?.id ||
                            m.fromId === 'demo_joel' ||
                            (m.fromName === currentUser?.displayName && m.fromId !== 'system');
               const isSystem = m.isSystem || m.fromId === 'system';
               if (isSystem) {
-                // Trade confirmation request — show action buttons for the other participant
+                // Trade confirmation request — show action buttons only on the most recent one
                 if (m.isTradeConfirm && m.requesterId !== currentUser?.id) {
+                  const isLatest = i === lastTradeConfirmIdx && !tradeAlertDismissed.has(activeConv?.id);
                   return (
                     <div key={m.id || i} style={{ textAlign: 'center', padding: '8px 0' }}>
                       <div style={{ display: 'inline-block', background: '#FFF8E1', border: '1.5px solid #FFE082', borderRadius: 18, padding: '14px 20px', maxWidth: 320 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#795548', marginBottom: 10 }}>{m.text}</div>
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                          <button onClick={() => setShowTradeComplete(true)} style={{ padding: '8px 16px', background: '#2E7D32', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✅ Confirmar trueque</button>
-                          <button onClick={() => { setReportTab('estafa'); setShowReport(true); }} style={{ padding: '8px 16px', background: '#E53935', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>🚨 Reportar</button>
-                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#795548', marginBottom: isLatest ? 10 : 0 }}>{m.text}</div>
+                        {isLatest && (
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                            <button onClick={() => { setShowTradeComplete(true); setTradeAlertDismissed(prev => new Set([...prev, activeConv.id])); }} style={{ padding: '8px 16px', background: '#2E7D32', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✅ Confirmar trueque</button>
+                            <button onClick={() => { setReportTab('estafa'); setShowReport(true); setTradeAlertDismissed(prev => new Set([...prev, activeConv.id])); }} style={{ padding: '8px 16px', background: '#E53935', color: '#fff', border: 'none', borderRadius: 100, fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>🚨 Reportar</button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -799,7 +841,8 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                   </div>
                 </div>
               );
-            })}
+            });
+            })()}
             <div ref={bottomRef} style={{ height: 1 }} />
           </div>
 
@@ -818,7 +861,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                 <button onClick={() => setPhotoPreview(null)} style={{ fontSize: 11, color: '#E57373', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Cancelar</button>
               </div>
               <button onClick={sendPhoto} disabled={sendingPhoto} style={{ background: theme.primary, border: 'none', borderRadius: 100, padding: '9px 18px', color: '#fff', fontFamily: 'Poppins', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                {sendingPhoto ? 'Enviando...' : 'Enviar foto'}
+                {sendingPhoto ? 'Verificando...' : 'Enviar foto'}
               </button>
             </div>
           )}

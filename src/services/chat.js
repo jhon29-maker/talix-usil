@@ -172,9 +172,16 @@ export const ChatService = {
   uploadPhoto: async (convId, dataUrl) => {
     if (!FIREBASE_READY || !storage) return null;
     try {
-      const storageRef = ref(storage, `chat/${convId}/${Date.now()}`);
-      await uploadString(storageRef, dataUrl, 'data_url');
-      return await getDownloadURL(storageRef);
+      const upload = async () => {
+        const storageRef = ref(storage, `chat/${convId}/${Date.now()}`);
+        await uploadString(storageRef, dataUrl, 'data_url');
+        return await getDownloadURL(storageRef);
+      };
+      // 6-second timeout — if Storage is misconfigured or slow, fall back to inline base64
+      return await Promise.race([
+        upload(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000)),
+      ]);
     } catch (_) { return null; }
   },
 
