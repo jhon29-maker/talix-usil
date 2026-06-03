@@ -58,7 +58,9 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const [reportText, setReportText] = useState('');
   const [reportPhoto, setReportPhoto] = useState(null);
   const [sendingReport, setSendingReport] = useState(false);
+  const [showMeetupProposalModal, setShowMeetupProposalModal] = useState(false);
   const reportFileRef = useRef(null);
+  const seenProposalRef = useRef({});
   const bottomRef = useRef(null);
   const msgsContainerRef = useRef(null);
   const isAtBottomRef = useRef(true);
@@ -110,6 +112,20 @@ export default function ChatPage({ currentUser, theme, showToast }) {
       return { ...conv, participantNames: names };
     }));
   }, [allUsersList, currentUser]);
+
+  // Close proposal modal when switching conversations
+  useEffect(() => { setShowMeetupProposalModal(false); }, [activeConv?.id]);
+
+  // Show proposal modal when the other person proposes a meetup
+  useEffect(() => {
+    if (!currentUser || !activeConv) return;
+    const convData = convos.find(c => c.id === activeConv.id) || activeConv;
+    const proposal = convData.meetupProposal;
+    if (!proposal || proposal.status !== 'pending' || proposal.proposedBy === currentUser.id) return;
+    if (seenProposalRef.current[convData.id] === proposal.proposedAt) return;
+    seenProposalRef.current[convData.id] = proposal.proposedAt;
+    setShowMeetupProposalModal(true);
+  }, [convos, activeConv?.id, currentUser]);
 
   // Proactively resolve names for convos that still show "..." by loading their messages
   const resolvedRef = useRef(new Set());
@@ -284,24 +300,93 @@ export default function ChatPage({ currentUser, theme, showToast }) {
     (c.itemTitle || '').toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleAcceptMeetup = async () => {
+    const convData = convos.find(c => c.id === activeConv?.id) || activeConv;
+    const proposal = convData?.meetupProposal;
+    if (!proposal) return;
+    await ChatService.acceptMeetup(activeConv.id, proposal);
+    setActiveConv(prev => prev ? { ...prev, meetup: { place: proposal.place, dateTime: proposal.dateTime }, meetupProposal: null } : prev);
+    setShowMeetupProposalModal(false);
+    showToast('¡Encuentro confirmado! ✅', 'success');
+  };
+
+  const handleChangeMeetup = () => {
+    const convData = convos.find(c => c.id === activeConv?.id) || activeConv;
+    const proposal = convData?.meetupProposal;
+    if (proposal?.place) setMeetPlace(proposal.place);
+    if (proposal?.dateTime) setMeetDate(proposal.dateTime);
+    setShowMeetupProposalModal(false);
+    setShowCoord(true);
+  };
+
   const confirmMeetup = () => {
     if (!meetDate) { showToast('Selecciona fecha y hora', 'error'); return; }
-    ChatService.setMeetup(activeConv.id, meetPlace, meetDate);
-    const all = DB.get('conversations') || [];
-    const idx = all.findIndex(c => c.id === activeConv.id);
-    if (idx >= 0) { all[idx] = { ...all[idx], meetup: { place: meetPlace, dateTime: meetDate } }; DB.set('conversations', all); setActiveConv({ ...activeConv, meetup: { place: meetPlace, dateTime: meetDate } }); }
-    showToast('¡Encuentro coordinado! 📅', 'success');
+    ChatService.setMeetup(activeConv.id, meetPlace, meetDate, currentUser);
+    setActiveConv(prev => prev ? { ...prev, meetupProposal: { place: meetPlace, dateTime: meetDate, proposedBy: currentUser.id, proposedByName: currentUser.displayName, status: 'pending', proposedAt: new Date().toISOString() } } : prev);
+    showToast('¡Propuesta enviada! Tu compañero debe confirmar 📅', 'success');
     setShowCoord(false);
   };
 
-  const clearMeetup = () => {
+  const clearMeetup = async () => {
+    if (FIREBASE_READY) {
+      try { await updateDoc(doc(db, 'conversations', activeConv.id), { meetup: null, meetupProposal: null }); } catch(_) {}
+    }
     const all = DB.get('conversations') || [];
     const idx = all.findIndex(c => c.id === activeConv.id);
-    if (idx >= 0) { all[idx] = { ...all[idx], meetup: null }; DB.set('conversations', all); setActiveConv({ ...activeConv, meetup: null }); }
+    if (idx >= 0) { all[idx] = { ...all[idx], meetup: null, meetupProposal: null }; DB.set('conversations', all); }
+    setActiveConv(prev => prev ? { ...prev, meetup: null, meetupProposal: null } : prev);
   };
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      {/* Meetup proposal modal */}
+      {showMeetupProposalModal && (() => {
+        const convData = convos.find(c => c.id === activeConv?.id) || activeConv;
+        const proposal = convData?.meetupProposal;
+        if (!proposal) return null;
+        let dateLabel = proposal.dateTime;
+        try { dateLabel = new Date(proposal.dateTime).toLocaleString('es', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); } catch(_) {}
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 8000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: '#fff', borderRadius: 24, width: 420, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.3)' }}>
+              <div style={{ background: 'linear-gradient(135deg, #E8F5E9, #F1F8E9)', padding: '28px 24px 20px', textAlign: 'center' }}>
+                <div style={{ fontSize: 52, marginBottom: 8 }}>📅</div>
+                <div style={{ fontWeight: 700, fontSize: 18, color: '#1C2B2B', marginBottom: 4 }}>Nueva propuesta de encuentro</div>
+                <div style={{ fontSize: 13, color: '#555' }}><strong>{proposal.proposedByName}</strong> quiere coordinar contigo</div>
+              </div>
+              <div style={{ padding: '20px 24px 24px' }}>
+                <div style={{ background: '#F5FAF5', border: '1.5px solid #C8E6C9', borderRadius: 16, padding: '16px 18px', marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <span style={{ fontSize: 22 }}>📍</span>
+                    <div>
+                      <div style={{ fontSize: 10, color: '#888', fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>LUGAR</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1C2B2B' }}>{proposal.place}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 22 }}>🕐</span>
+                    <div>
+                      <div style={{ fontSize: 10, color: '#888', fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>FECHA Y HORA</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1C2B2B' }}>{dateLabel}</div>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    onClick={handleAcceptMeetup}
+                    style={{ flex: 1, padding: '13px 16px', borderRadius: 100, border: 'none', background: theme.primary, color: '#fff', fontFamily: 'Poppins', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
+                  >✅ Aceptar coordinación</button>
+                  <button
+                    onClick={handleChangeMeetup}
+                    style={{ flex: 1, padding: '13px 16px', borderRadius: 100, border: `2px solid ${theme.primary}`, background: '#fff', color: theme.primary, fontFamily: 'Poppins', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
+                  >📅 Cambiar fecha</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {showTradeComplete && activeConv && (
         <TradeCompleteModal
           conv={activeConv}
@@ -497,74 +582,98 @@ export default function ChatPage({ currentUser, theme, showToast }) {
         </div>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAF8', minWidth: 0 }}>
-          {/* Header */}
-          <div style={{ padding: '14px 22px', background: '#fff', borderBottom: '1px solid #EEE', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            <div style={{ position: 'relative' }}>
-              <TAvatar name={getOtherName(activeConv)} color={getOtherColor(activeConv)} size={42} />
-              <div style={{ position: 'absolute', bottom: 1, right: 1, width: 10, height: 10, borderRadius: '50%', background: '#4CAF50', border: '2px solid #fff' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#1C2B2B' }}>{getOtherName(activeConv)} <span style={{ fontSize: 11, color: '#4CAF50', fontWeight: 600 }}>✓ USIL</span></div>
-              {activeConv.itemTitle && <div style={{ fontSize: 12, color: '#888' }}>📦 {activeConv.itemTitle}</div>}
-            </div>
-            {activeConv.meetup && (
-              <div style={{ background: '#E8F5E9', padding: '6px 12px', borderRadius: 100, fontSize: 12, fontWeight: 600, color: '#2E7D32' }}>
-                📅 {new Date(activeConv.meetup.dateTime).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}
-              </div>
-            )}
-            {activeConv.meetup && (
-              <button
-                onClick={() => setShowTradeComplete(true)}
-                style={{ background: '#E8F5E9', color: '#2E7D32', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
-              >
-                ✅ Completar trueque
-              </button>
-            )}
-            <button
-              onClick={() => setShowCoord(!showCoord)}
-              style={{ background: showCoord ? theme.primary : '#F4F6F0', color: showCoord ? '#fff' : '#555', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, transition: 'all 0.2s', flexShrink: 0 }}
-            >
-              📅 Coordinar
-            </button>
-            <button
-              onClick={() => setShowReport(true)}
-              style={{ background: '#FFEBEE', color: '#E53935', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
-            >
-              ⚠️ Reportar
-            </button>
-          </div>
-
-          {/* Coordination panel */}
-          {showCoord && (
-            <div style={{ background: '#fff', borderBottom: '1px solid #EEE', padding: '14px 22px', flexShrink: 0 }}>
-              {activeConv.meetup ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 26 }}>✅</span>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#2E7D32' }}>¡Encuentro coordinado!</div>
-                    <div style={{ fontSize: 13, color: '#555' }}>
-                      {activeConv.meetup.place} · {activeConv.meetup.dateTime ? new Date(activeConv.meetup.dateTime).toLocaleString('es', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+          {/* Header + Coordination panel — share liveConv data */}
+          {(() => {
+            const liveConv = convos.find(c => c.id === activeConv.id) || activeConv;
+            const myPendingProposal = liveConv.meetupProposal?.status === 'pending' && liveConv.meetupProposal?.proposedBy === currentUser?.id ? liveConv.meetupProposal : null;
+            return (
+              <>
+                <div style={{ padding: '14px 22px', background: '#fff', borderBottom: '1px solid #EEE', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                  <div style={{ position: 'relative' }}>
+                    <TAvatar name={getOtherName(activeConv)} color={getOtherColor(activeConv)} size={42} />
+                    <div style={{ position: 'absolute', bottom: 1, right: 1, width: 10, height: 10, borderRadius: '50%', background: '#4CAF50', border: '2px solid #fff' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: '#1C2B2B' }}>{getOtherName(activeConv)} <span style={{ fontSize: 11, color: '#4CAF50', fontWeight: 600 }}>✓ USIL</span></div>
+                    {activeConv.itemTitle && <div style={{ fontSize: 12, color: '#888' }}>📦 {activeConv.itemTitle}</div>}
+                  </div>
+                  {liveConv.meetup && (
+                    <div style={{ background: '#E8F5E9', padding: '6px 12px', borderRadius: 100, fontSize: 12, fontWeight: 600, color: '#2E7D32' }}>
+                      📅 {new Date(liveConv.meetup.dateTime).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}
                     </div>
-                  </div>
-                  <button onClick={clearMeetup} style={{ marginLeft: 'auto', background: '#F4F6F0', border: 'none', padding: '7px 14px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, color: '#888' }}>Cambiar</button>
+                  )}
+                  {myPendingProposal && !liveConv.meetup && (
+                    <div style={{ background: '#FFF3E0', padding: '6px 12px', borderRadius: 100, fontSize: 12, fontWeight: 600, color: '#E65100' }}>
+                      ⏳ Esperando respuesta...
+                    </div>
+                  )}
+                  {liveConv.meetup && (
+                    <button
+                      onClick={() => setShowTradeComplete(true)}
+                      style={{ background: '#E8F5E9', color: '#2E7D32', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
+                    >
+                      ✅ Completar trueque
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowCoord(!showCoord)}
+                    style={{ background: showCoord ? theme.primary : '#F4F6F0', color: showCoord ? '#fff' : '#555', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, transition: 'all 0.2s', flexShrink: 0 }}
+                  >
+                    📅 Coordinar
+                  </button>
+                  <button
+                    onClick={() => setShowReport(true)}
+                    style={{ background: '#FFEBEE', color: '#E53935', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
+                  >
+                    ⚠️ Reportar
+                  </button>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 140 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: '#666', display: 'block', marginBottom: 5 }}>📍 Eco-Spot</label>
-                    <select value={meetPlace} onChange={e => setMeetPlace(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #EEE', borderRadius: 10, fontFamily: 'Poppins', fontSize: 13, background: '#FAFBFA', outline: 'none' }}>
-                      {ECO_SPOTS.map(p => <option key={p}>{p}</option>)}
-                    </select>
+
+                {/* Coordination panel */}
+                {showCoord && (
+                  <div style={{ background: '#fff', borderBottom: '1px solid #EEE', padding: '14px 22px', flexShrink: 0 }}>
+                    {liveConv.meetup ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 26 }}>✅</span>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#2E7D32' }}>¡Encuentro confirmado por ambas partes!</div>
+                          <div style={{ fontSize: 13, color: '#555' }}>
+                            {liveConv.meetup.place} · {liveConv.meetup.dateTime ? new Date(liveConv.meetup.dateTime).toLocaleString('es', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                          </div>
+                        </div>
+                        <button onClick={clearMeetup} style={{ marginLeft: 'auto', background: '#F4F6F0', border: 'none', padding: '7px 14px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, color: '#888' }}>Cambiar</button>
+                      </div>
+                    ) : myPendingProposal ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 26 }}>⏳</span>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#E65100' }}>Propuesta enviada — esperando respuesta de tu compañero</div>
+                          <div style={{ fontSize: 13, color: '#555' }}>
+                            {myPendingProposal.place} · {myPendingProposal.dateTime ? new Date(myPendingProposal.dateTime).toLocaleString('es', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                          </div>
+                        </div>
+                        <button onClick={clearMeetup} style={{ marginLeft: 'auto', background: '#F4F6F0', border: 'none', padding: '7px 14px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, color: '#888' }}>Cancelar</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 140 }}>
+                          <label style={{ fontSize: 12, fontWeight: 600, color: '#666', display: 'block', marginBottom: 5 }}>📍 Eco-Spot</label>
+                          <select value={meetPlace} onChange={e => setMeetPlace(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #EEE', borderRadius: 10, fontFamily: 'Poppins', fontSize: 13, background: '#FAFBFA', outline: 'none' }}>
+                            {ECO_SPOTS.map(p => <option key={p}>{p}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 140 }}>
+                          <label style={{ fontSize: 12, fontWeight: 600, color: '#666', display: 'block', marginBottom: 5 }}>📅 Fecha y hora</label>
+                          <input type="datetime-local" value={meetDate} onChange={e => setMeetDate(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #EEE', borderRadius: 10, fontFamily: 'Poppins', fontSize: 13, background: '#FAFBFA', outline: 'none', boxSizing: 'border-box' }} />
+                        </div>
+                        <TButton onClick={confirmMeetup} theme={theme} style={{ padding: '10px 16px', whiteSpace: 'nowrap', flexShrink: 0 }}>Proponer 📤</TButton>
+                      </div>
+                    )}
                   </div>
-                  <div style={{ flex: 1, minWidth: 140 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: '#666', display: 'block', marginBottom: 5 }}>📅 Fecha y hora</label>
-                    <input type="datetime-local" value={meetDate} onChange={e => setMeetDate(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #EEE', borderRadius: 10, fontFamily: 'Poppins', fontSize: 13, background: '#FAFBFA', outline: 'none', boxSizing: 'border-box' }} />
-                  </div>
-                  <TButton onClick={confirmMeetup} theme={theme} style={{ padding: '10px 16px', whiteSpace: 'nowrap', flexShrink: 0 }}>Confirmar 📤</TButton>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </>
+            );
+          })()}
 
           {/* Safety banner */}
           <div style={{ background: '#FFF8E1', borderBottom: '1px solid #FFE082', padding: '7px 22px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

@@ -225,26 +225,61 @@ export const ChatService = {
     NotificationsService.add(otherId, { icon: '💬', text: `${from.displayName}: ${imageUrl ? '📷 Foto' : text.slice(0, 40)}`, time: 'ahora' });
   },
 
-  setMeetup: async (convId, place, dateTime) => {
+  setMeetup: async (convId, place, dateTime, proposedByUser) => {
+    const now = new Date().toISOString();
+    let dateLabel = dateTime;
+    try { dateLabel = new Date(dateTime).toLocaleString('es', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch(_) {}
+
+    const proposal = {
+      place, dateTime,
+      proposedBy: proposedByUser.id,
+      proposedByName: proposedByUser.displayName,
+      status: 'pending',
+      proposedAt: now,
+    };
+
     const systemMsg = {
-      convId,
-      fromId: 'system',
-      fromName: 'TALIX',
-      fromColor: '#1A7A50',
-      text: `📅 Encuentro coordinado: ${place} · ${dateTime}`,
-      read: false,
-      isSystem: true,
-      createdAt: FIREBASE_READY ? serverTimestamp() : new Date().toISOString(),
+      convId, fromId: 'system', fromName: 'TALIX', fromColor: '#1A7A50',
+      text: `📅 ${proposedByUser.displayName} propone: ${place} · ${dateLabel}`,
+      read: false, isSystem: true,
+      createdAt: FIREBASE_READY ? serverTimestamp() : now,
     };
 
     if (FIREBASE_READY) {
+      await setDoc(doc(db, 'conversations', convId), { meetupProposal: proposal }, { merge: true });
       await addDoc(collection(db, 'conversations', convId, 'messages'), systemMsg);
-      await updateDoc(doc(db, 'conversations', convId), { meetup: { place, dateTime } });
       return;
     }
 
     DB.push('msgs_' + convId, systemMsg);
-    DB.update('conversations', convId, { meetup: { place, dateTime } });
+    DB.update('conversations', convId, { meetupProposal: proposal });
+  },
+
+  acceptMeetup: async (convId, proposal) => {
+    let dateLabel = proposal.dateTime;
+    try { dateLabel = new Date(proposal.dateTime).toLocaleString('es', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch(_) {}
+
+    const systemMsg = {
+      convId, fromId: 'system', fromName: 'TALIX', fromColor: '#1A7A50',
+      text: `✅ ¡Encuentro confirmado por ambas partes! ${proposal.place} · ${dateLabel}`,
+      read: false, isSystem: true,
+      createdAt: FIREBASE_READY ? serverTimestamp() : new Date().toISOString(),
+    };
+
+    if (FIREBASE_READY) {
+      await setDoc(doc(db, 'conversations', convId), {
+        meetup: { place: proposal.place, dateTime: proposal.dateTime },
+        meetupProposal: null,
+      }, { merge: true });
+      await addDoc(collection(db, 'conversations', convId, 'messages'), systemMsg);
+      return;
+    }
+
+    DB.push('msgs_' + convId, systemMsg);
+    DB.update('conversations', convId, {
+      meetup: { place: proposal.place, dateTime: proposal.dateTime },
+      meetupProposal: null,
+    });
   },
 };
 
