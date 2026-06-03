@@ -78,7 +78,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
   useEffect(() => {
     if (!currentUser) return;
-    return ChatService.getConversations(currentUser.id, currentUser.email, (sorted) => {
+    return ChatService.getConversations(currentUser.id, currentUser.email, currentUser.displayName, (sorted) => {
       // Use functional update so we can merge with previous state (never lose known-good names)
       setConvos(prev => sorted.map(conv => {
         const existing = prev.find(c => c.id === conv.id);

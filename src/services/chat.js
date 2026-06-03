@@ -20,7 +20,7 @@ import { NotificationsService } from './notifications';
 export const ChatService = {
   getConversationId: (uid1, uid2) => [uid1, uid2].sort().join('_'),
 
-  getConversations: (userId, userEmail, cb) => {
+  getConversations: (userId, userEmail, userDisplayName, cb) => {
     if (FIREBASE_READY) {
       let stopped = false;
       let timer = null;
@@ -28,12 +28,16 @@ export const ChatService = {
       const poll = async () => {
         if (stopped) return;
         try {
-          // Collect ALL Firestore UIDs for this user's email (handles duplicate accounts)
+          // Collect ALL UIDs: current + email-duplicates + old migrated UIDs
           const allIds = [userId];
           if (userEmail) {
             try {
               const snap = await getDocs(query(collection(db, 'users'), where('email', '==', userEmail)));
-              snap.docs.forEach(d => { if (!allIds.includes(d.id)) allIds.push(d.id); });
+              snap.docs.forEach(d => {
+                if (!allIds.includes(d.id)) allIds.push(d.id);
+                // Include old UIDs saved during UID migration so old conversations are still findable
+                (d.data()?.oldUids || []).forEach(uid => { if (!allIds.includes(uid)) allIds.push(uid); });
+              });
             } catch (_) {}
           }
 
@@ -65,7 +69,22 @@ export const ChatService = {
             }
           } catch (_) {}
 
-          const all = [...fromQuery, ...fromUserDoc];
+          // Recovery: also find conversations where we sent the last message (catches lost conversations from UID changes)
+          let fromDisplayName = [];
+          if (userDisplayName) {
+            try {
+              const knownIds = new Set([...fromQuery, ...fromUserDoc].map(c => c.id));
+              const nameSnap = await getDocs(query(collection(db, 'conversations'), where('lastMsgFromName', '==', userDisplayName)));
+              nameSnap.docs.forEach(d => {
+                if (!knownIds.has(d.id)) {
+                  fromDisplayName.push({ id: d.id, ...d.data() });
+                  knownIds.add(d.id);
+                }
+              });
+            } catch (_) {}
+          }
+
+          const all = [...fromQuery, ...fromUserDoc, ...fromDisplayName];
           // Dedup by doc id
           const seenIds = new Set();
           const unique = all.filter(c => { if (seenIds.has(c.id)) return false; seenIds.add(c.id); return true; });
@@ -76,7 +95,7 @@ export const ChatService = {
             if (!byPair[key] || new Date(c.lastTime || 0) > new Date(byPair[key].lastTime || 0)) byPair[key] = c;
           });
           const sorted = Object.values(byPair)
-            .filter(c => !c.deletedFor?.[userId])
+            .filter(c => !allIds.some(uid => c.deletedFor?.[uid]))
             .sort((a, b) => (new Date(b.lastTime || 0) - new Date(a.lastTime || 0)));
           cb(sorted);
         } catch (_) {}

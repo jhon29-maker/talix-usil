@@ -5,7 +5,7 @@ import {
   updateProfile,
   sendEmailVerification,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, getDocs, collection, addDoc, query, where, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection, addDoc, query, where, deleteDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { FIREBASE_READY, auth, db } from '../config/firebase';
 import { DB } from './db';
 
@@ -231,6 +231,26 @@ export const Auth = {
       // CRITICAL: always make sure localStorage currentUser has the Firebase UID
       const localUser = Auth.getCurrentUser();
       if (localUser && localUser.id !== firebaseUid) {
+        const oldUid = localUser.id;
+        // Save old UID on the canonical doc so getConversations can still find old conversations
+        try {
+          await updateDoc(doc(db, 'users', firebaseUid), { oldUids: arrayUnion(oldUid) });
+        } catch (_) {
+          // doc might not have oldUids field yet; use setDoc with merge
+          setDoc(doc(db, 'users', firebaseUid), { oldUids: [oldUid] }, { merge: true }).catch(() => {});
+        }
+        // Also migrate any conversations with old UID in participants
+        try {
+          const oldConvos = await getDocs(query(collection(db, 'conversations'), where('participants', 'array-contains', oldUid)));
+          oldConvos.docs.forEach(convDoc => {
+            const data = convDoc.data();
+            if (!data.participants?.includes(firebaseUid)) {
+              const newPs = data.participants.map(p => p === oldUid ? firebaseUid : p);
+              updateDoc(convDoc.ref, { participants: newPs, [`participantNames.${firebaseUid}`]: data.participantNames?.[oldUid] || localUser.displayName || '' }).catch(() => {});
+            }
+            updateDoc(doc(db, 'users', firebaseUid), { conversationIds: arrayUnion(convDoc.id) }).catch(() => {});
+          });
+        } catch (_) {}
         const corrected = { ...localUser, ...profile, id: firebaseUid };
         localStorage.setItem('talix_current_user', JSON.stringify(corrected));
       } else if (!localUser) {
