@@ -66,9 +66,16 @@ export const ChatService = {
           } catch (_) {}
 
           const all = [...fromQuery, ...fromUserDoc];
-          const seen = new Set();
-          const sorted = all
-            .filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
+          // Dedup by doc id
+          const seenIds = new Set();
+          const unique = all.filter(c => { if (seenIds.has(c.id)) return false; seenIds.add(c.id); return true; });
+          // Dedup by participants pair — keep newest conversation per pair
+          const byPair = {};
+          unique.forEach(c => {
+            const key = [...(c.participants || [])].sort().join('_');
+            if (!byPair[key] || new Date(c.lastTime || 0) > new Date(byPair[key].lastTime || 0)) byPair[key] = c;
+          });
+          const sorted = Object.values(byPair)
             .filter(c => !c.deletedFor?.[userId])
             .sort((a, b) => (new Date(b.lastTime || 0) - new Date(a.lastTime || 0)));
           cb(sorted);

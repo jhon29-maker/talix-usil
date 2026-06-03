@@ -221,20 +221,18 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
   const getOtherName = (conv) => {
     if (!conv || !currentUser) return '...';
-    // 1. Last message was from the other person — most reliable for old convos
+    // 1. Last message from the other person — most reliable
     if (conv.lastMsgFromId && conv.lastMsgFromId !== currentUser.id && conv.lastMsgFromName) {
       return conv.lastMsgFromName;
     }
-    // 2. participantNames stored in Firestore doc
-    if (conv.participantNames) {
-      const otherId = Object.keys(conv.participantNames).find(k => k !== currentUser.id && k !== 'demo_joel');
-      if (otherId && conv.participantNames[otherId]) return conv.participantNames[otherId];
-    }
-    // 3. Live Firestore users list
+    // 2. Use participants array to find the OTHER person's ID (not any key != mine)
     const otherId = (conv.participants || []).find(p => p !== currentUser.id);
+    // 3. Look up that specific ID in participantNames
+    if (otherId && conv.participantNames?.[otherId]) return conv.participantNames[otherId];
+    // 4. Live Firestore users list
     const found = allUsersList.find(u => u.id === otherId) || (DB.get('users') || []).find(u => u.id === otherId);
     if (found?.displayName) return found.displayName;
-    // 4. Loaded messages of active conversation
+    // 5. Messages of active conversation as last resort
     if (activeConv?.id === conv.id && msgs.length > 0) {
       const m = msgs.find(x => x.fromId !== currentUser.id && x.fromId !== 'system' && x.fromName);
       if (m?.fromName) return m.fromName;
