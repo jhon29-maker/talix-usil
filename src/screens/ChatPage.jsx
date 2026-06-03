@@ -256,20 +256,31 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
   const getOtherName = (conv) => {
     if (!conv || !currentUser) return '...';
-    // 1. Last message from the other person — most reliable
-    if (conv.lastMsgFromId && conv.lastMsgFromId !== currentUser.id && conv.lastMsgFromName) {
+    const myName = currentUser.displayName;
+    // 1. Last message from the other person — but guard against old UIDs returning our own name
+    if (conv.lastMsgFromName && conv.lastMsgFromName !== myName && conv.lastMsgFromId !== 'system') {
       return conv.lastMsgFromName;
     }
-    // 2. Use participants array to find the OTHER person's ID (not any key != mine)
-    const otherId = (conv.participants || []).find(p => p !== currentUser.id);
-    // 3. Look up that specific ID in participantNames
+    // 2. participantNames by VALUE — skip any entry whose name is the current user's own name
+    if (conv.participantNames) {
+      const otherEntry = Object.entries(conv.participantNames)
+        .find(([k, v]) => v && v !== myName && k !== currentUser.id);
+      if (otherEntry) return otherEntry[1];
+    }
+    // 3. participants array — skip any ID whose participantNames value matches our own name
+    const otherId = (conv.participants || []).find(p => {
+      if (p === currentUser.id) return false;
+      const name = conv.participantNames?.[p];
+      if (name && name === myName) return false;
+      return true;
+    });
     if (otherId && conv.participantNames?.[otherId]) return conv.participantNames[otherId];
-    // 4. Live Firestore users list
+    // 4. Live users list
     const found = allUsersList.find(u => u.id === otherId) || (DB.get('users') || []).find(u => u.id === otherId);
     if (found?.displayName) return found.displayName;
     // 5. Messages of active conversation as last resort
     if (activeConv?.id === conv.id && msgs.length > 0) {
-      const m = msgs.find(x => x.fromId !== currentUser.id && x.fromId !== 'system' && x.fromName);
+      const m = msgs.find(x => x.fromName && x.fromName !== myName && x.fromId !== 'system');
       if (m?.fromName) return m.fromName;
     }
     return '...';
@@ -277,7 +288,13 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
   const getOtherColor = (conv) => {
     const palette = { demo_ana: '#6DBE7E', demo_carlos: '#5B9BD5', demo_lucia: '#F5A623' };
-    const otherId = (conv?.participants || []).find(p => p !== currentUser?.id && p !== 'demo_joel');
+    const myName = currentUser?.displayName;
+    const otherId = (conv?.participants || []).find(p => {
+      if (!p || p === currentUser?.id || p === 'demo_joel') return false;
+      const name = conv?.participantNames?.[p];
+      if (name && name === myName) return false;
+      return true;
+    });
     if (palette[otherId]) return palette[otherId];
     const found = allUsersList.find(u => u.id === otherId) || (DB.get('users') || []).find(u => u.id === otherId);
     return found?.avatarColor || '#6DBE7E';
