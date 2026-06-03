@@ -106,14 +106,28 @@ export const ChatService = {
             if (!byPair[key] || new Date(c.lastTime || 0) > new Date(byPair[key].lastTime || 0)) byPair[key] = c;
           });
           // Dedup by other person's display name — prevents same real person appearing multiple times when UID changed
+          // Priority: prefer the conversation where the OTHER person sent a message (has real chat history)
           const byPersonName = {};
           Object.values(byPair).forEach(c => {
             const otherId = (c.participants || []).find(p => !allIds.includes(p));
             const otherName = (otherId && c.participantNames?.[otherId]) ||
                               (c.lastMsgFromId && !allIds.includes(c.lastMsgFromId) ? c.lastMsgFromName : null) ||
                               c.id;
-            if (!byPersonName[otherName] || new Date(c.lastTime || 0) > new Date(byPersonName[otherName].lastTime || 0)) {
+            if (!byPersonName[otherName]) {
               byPersonName[otherName] = c;
+            } else {
+              const prev = byPersonName[otherName];
+              const cHasOtherMsg = c.lastMsgFromId && !allIds.includes(c.lastMsgFromId);
+              const prevHasOtherMsg = prev.lastMsgFromId && !allIds.includes(prev.lastMsgFromId);
+              // Prefer whichever conversation has the other person's message (real received content)
+              if (cHasOtherMsg && !prevHasOtherMsg) {
+                byPersonName[otherName] = c;
+              } else if (!cHasOtherMsg && prevHasOtherMsg) {
+                // keep prev
+              } else {
+                // Both or neither — keep newest
+                if (new Date(c.lastTime || 0) > new Date(prev.lastTime || 0)) byPersonName[otherName] = c;
+              }
             }
           });
           const sorted = Object.values(byPersonName)

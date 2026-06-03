@@ -156,7 +156,15 @@ export const Auth = {
         await setDoc(doc(db, 'users', cred.user.uid), profile);
       }
       if (profile.status === 'baneado') throw new Error('Tu cuenta ha sido suspendida por el administrador.');
-      const updated = { ...profile, id: cred.user.uid, lastIp: ip, lastLogin: new Date().toISOString() };
+      // Firebase Auth displayName is set at registration — prefer it over Firestore if it exists
+      const authDisplayName = cred.user.displayName;
+      const updated = {
+        ...profile,
+        id: cred.user.uid,
+        displayName: authDisplayName || profile.displayName,
+        lastIp: ip,
+        lastLogin: new Date().toISOString(),
+      };
       // Update Firestore doc and delete any duplicate docs with same email
       try { await setDoc(doc(db, 'users', cred.user.uid), updated, { merge: true }); } catch (_) {}
       removeDuplicates(email, cred.user.uid);
@@ -251,7 +259,11 @@ export const Auth = {
             updateDoc(doc(db, 'users', firebaseUid), { conversationIds: arrayUnion(convDoc.id) }).catch(() => {});
           });
         } catch (_) {}
-        const corrected = { ...localUser, ...profile, id: firebaseUid };
+        // Prefer Firebase Auth displayName (set at registration) over any stored value
+        const bestName = auth.currentUser.displayName || localUser.displayName || profile.displayName;
+        const corrected = { ...localUser, ...profile, id: firebaseUid, displayName: bestName };
+        // Persist the correct name back to Firestore so admin always sees it
+        setDoc(doc(db, 'users', firebaseUid), { displayName: bestName }, { merge: true }).catch(() => {});
         localStorage.setItem('talix_current_user', JSON.stringify(corrected));
       } else if (!localUser) {
         localStorage.setItem('talix_current_user', JSON.stringify({ ...profile, id: firebaseUid }));

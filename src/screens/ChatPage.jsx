@@ -11,6 +11,25 @@ import TradeCompleteModal from './TradeCompleteModal';
 const QUICK = ['¿Cuándo puedes?', '¿Dónde nos vemos?', '¡Me interesa! 🙌', '¿Está disponible aún?'];
 const ECO_SPOTS = ['Biblioteca Central USIL', 'Cafetería Principal', 'Entrada Principal', 'Sala de Estudio B2', 'Patio Central', 'Terraza USIL', 'Edificio F – Lobby'];
 
+// Compress image to max 480px / JPEG 65% — keeps base64 under ~50 KB so it fits in a Firestore doc
+function compressImage(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 480;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.65));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 // Handle both Firestore Timestamps and ISO strings
 function parseTs(ts) {
   if (!ts) return null;
@@ -196,10 +215,10 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const sendPhoto = async () => {
     if (!photoPreview || !activeConv) return;
     setSendingPhoto(true);
-    const url = await ChatService.uploadPhoto(activeConv.id, photoPreview);
-    if (url) {
-      await ChatService.sendMessage(activeConv.id, currentUser, '', activeConv.participants || [currentUser.id], activeConv.itemTitle, url);
-    }
+    // Try Firebase Storage first; if it fails (permissions/config), fall back to inline base64 in Firestore
+    let url = await ChatService.uploadPhoto(activeConv.id, photoPreview);
+    if (!url) url = await compressImage(photoPreview);
+    await ChatService.sendMessage(activeConv.id, currentUser, '', activeConv.participants || [currentUser.id], activeConv.itemTitle, url);
     setPhotoPreview(null);
     setSendingPhoto(false);
   };

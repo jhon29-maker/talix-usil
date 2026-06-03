@@ -27,14 +27,18 @@ export const UsersService = {
       try {
         const users = await firestoreUsers();
         if (users && users.length > 0) {
-          // Deduplicate by email — keep most recently created per email
+          // Deduplicate by email — keep most recently created per email; users without email shown as-is
           const byEmail = {};
+          const noEmail = [];
           users.forEach(u => {
-            if (!u.email) return;
+            if (!u.email) { noEmail.push(u); return; }
             const existing = byEmail[u.email];
             if (!existing || (u.createdAt || '') > (existing.createdAt || '')) byEmail[u.email] = u;
           });
-          const unique = Object.values(byEmail);
+          // Exclude no-email entries that have the same displayName as an email-keyed entry (true duplicates)
+          const emailNames = new Set(Object.values(byEmail).map(u => u.displayName));
+          const uniqueNoEmail = noEmail.filter(u => !emailNames.has(u.displayName));
+          const unique = [...Object.values(byEmail), ...uniqueNoEmail];
           DB.set('users', unique);
           callback(unique);
         } else {
