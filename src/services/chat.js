@@ -82,6 +82,17 @@ export const ChatService = {
                 }
               });
             } catch (_) {}
+            // Also find by participantDisplayNames array — catches convos where a friend sent the last msg
+            try {
+              const knownIds2 = new Set([...fromQuery, ...fromUserDoc, ...fromDisplayName].map(c => c.id));
+              const nameSnap2 = await getDocs(query(collection(db, 'conversations'), where('participantDisplayNames', 'array-contains', userDisplayName)));
+              nameSnap2.docs.forEach(d => {
+                if (!knownIds2.has(d.id)) {
+                  fromDisplayName.push({ id: d.id, ...d.data() });
+                  knownIds2.add(d.id);
+                }
+              });
+            } catch (_) {}
           }
 
           const all = [...fromQuery, ...fromUserDoc, ...fromDisplayName];
@@ -94,7 +105,18 @@ export const ChatService = {
             const key = [...(c.participants || [])].sort().join('_');
             if (!byPair[key] || new Date(c.lastTime || 0) > new Date(byPair[key].lastTime || 0)) byPair[key] = c;
           });
-          const sorted = Object.values(byPair)
+          // Dedup by other person's display name — prevents same real person appearing multiple times when UID changed
+          const byPersonName = {};
+          Object.values(byPair).forEach(c => {
+            const otherId = (c.participants || []).find(p => !allIds.includes(p));
+            const otherName = (otherId && c.participantNames?.[otherId]) ||
+                              (c.lastMsgFromId && !allIds.includes(c.lastMsgFromId) ? c.lastMsgFromName : null) ||
+                              c.id;
+            if (!byPersonName[otherName] || new Date(c.lastTime || 0) > new Date(byPersonName[otherName].lastTime || 0)) {
+              byPersonName[otherName] = c;
+            }
+          });
+          const sorted = Object.values(byPersonName)
             .filter(c => !allIds.some(uid => c.deletedFor?.[uid]))
             .sort((a, b) => (new Date(b.lastTime || 0) - new Date(a.lastTime || 0)));
           cb(sorted);
@@ -198,6 +220,11 @@ export const ChatService = {
     if (FIREBASE_READY) {
       const now = new Date().toISOString();
       const otherId = participants.find(p => p !== from.id);
+      // Collect all display names for participantDisplayNames array field (enables name-based recovery queries)
+      const displayNames = [from.displayName];
+      if (participantNames) {
+        Object.values(participantNames).forEach(n => { if (n && !displayNames.includes(n)) displayNames.push(n); });
+      }
       // Use setDoc+merge+increment — creates doc if missing, updates if exists. No getDoc needed.
       const convUpdate = {
         id: convId,
@@ -208,6 +235,7 @@ export const ChatService = {
         lastMsgFromId: from.id,
         lastMsgFromName: from.displayName,
         [`participantNames.${from.id}`]: from.displayName,
+        participantDisplayNames: arrayUnion(...displayNames),
       };
       if (participantNames) {
         Object.entries(participantNames).forEach(([k, v]) => { convUpdate[`participantNames.${k}`] = v; });

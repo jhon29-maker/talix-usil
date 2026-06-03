@@ -712,7 +712,9 @@ export default function ChatPage({ currentUser, theme, showToast }) {
               </div>
             )}
             {msgs.map((m, i) => {
-              const isMe = m.fromId === currentUser?.id || m.fromId === 'demo_joel';
+              const isMe = m.fromId === currentUser?.id ||
+                           m.fromId === 'demo_joel' ||
+                           (m.fromName === currentUser?.displayName && m.fromId !== 'system');
               const isSystem = m.isSystem || m.fromId === 'system';
               if (isSystem) {
                 // Trade confirmation request — show action buttons for the other participant
