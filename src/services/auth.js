@@ -5,14 +5,13 @@ import {
   updateProfile,
   sendEmailVerification,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, getDocs, collection, addDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection, addDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { FIREBASE_READY, auth, db } from '../config/firebase';
 import { DB } from './db';
 
 const AVATAR_COLORS = ['#6DBE7E', '#5B9BD5', '#F5A623', '#9C6BBE', '#E57373', '#4DB6AC'];
 const randomColor = () => AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 
-// Simple non-crypto hash for localStorage demo mode (Firebase handles real auth)
 function hashPwd(s) {
   return [...s].reduce((h, c) => (Math.imul(31, h) + c.charCodeAt(0)) | 0, 0).toString(36);
 }
@@ -33,6 +32,16 @@ function buildUserProfile(uid, email, displayName, faculty, termsAcceptedAt = nu
     status: 'activo',
     isAdmin: false,
   };
+}
+
+// Delete all Firestore user docs with this email EXCEPT the one we want to keep
+async function removeDuplicates(email, keepUid) {
+  try {
+    const snap = await getDocs(query(collection(db, 'users'), where('email', '==', email)));
+    await Promise.all(
+      snap.docs.filter(d => d.id !== keepUid).map(d => deleteDoc(d.ref).catch(() => {}))
+    );
+  } catch (_) {}
 }
 
 async function saveEmailRegistry(email, displayName, faculty) {
@@ -92,6 +101,9 @@ export const Auth = {
         localStorage.setItem('talix_pending_profile', JSON.stringify({ uid: cred.user.uid, profile }));
       }
 
+      // Remove any old duplicate docs with same email (keeps only this Firebase UID)
+      removeDuplicates(email, cred.user.uid);
+
       // Run other tasks (don't block on email verification errors)
       try { await saveEmailRegistry(email, displayName, faculty); } catch (_) {}
       try {
@@ -144,9 +156,10 @@ export const Auth = {
         await setDoc(doc(db, 'users', cred.user.uid), profile);
       }
       if (profile.status === 'baneado') throw new Error('Tu cuenta ha sido suspendida por el administrador.');
-      const updated = { ...profile, lastIp: ip, lastLogin: new Date().toISOString() };
-      // Also update the Firestore doc with latest login info
+      const updated = { ...profile, id: cred.user.uid, lastIp: ip, lastLogin: new Date().toISOString() };
+      // Update Firestore doc and delete any duplicate docs with same email
       try { await setDoc(doc(db, 'users', cred.user.uid), updated, { merge: true }); } catch (_) {}
+      removeDuplicates(email, cred.user.uid);
       // Sync ALL Firestore users to localStorage so admin panel sees everyone
       try {
         const allSnap = await getDocs(collection(db, 'users'));
@@ -223,6 +236,9 @@ export const Auth = {
       } else if (!localUser) {
         localStorage.setItem('talix_current_user', JSON.stringify({ ...profile, id: firebaseUid }));
       }
+
+      // Delete duplicate docs with same email, keep only Firebase UID doc
+      if (profile.email) await removeDuplicates(profile.email, firebaseUid);
 
       // Always sync all users to localStorage
       const allSnap = await getDocs(collection(db, 'users'));
