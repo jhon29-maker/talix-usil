@@ -20,40 +20,57 @@ import { NotificationsService } from './notifications';
 export const ChatService = {
   getConversationId: (uid1, uid2) => [uid1, uid2].sort().join('_'),
 
-  getConversations: (userId, cb) => {
+  getConversations: (userId, userEmail, cb) => {
     if (FIREBASE_READY) {
       let stopped = false;
       let timer = null;
-      const q = query(collection(db, 'conversations'), where('participants', 'array-contains', userId));
+
       const poll = async () => {
         if (stopped) return;
         try {
-          // Primary: query by participants array
-          const snap = await getDocs(q);
-          const fromQuery = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          // Collect ALL Firestore UIDs for this user's email (handles duplicate accounts)
+          const allIds = [userId];
+          if (userEmail) {
+            try {
+              const snap = await getDocs(query(collection(db, 'users'), where('email', '==', userEmail)));
+              snap.docs.forEach(d => { if (!allIds.includes(d.id)) allIds.push(d.id); });
+            } catch (_) {}
+          }
 
-          // Secondary: fetch conversations stored directly on user doc (catches new chats)
+          // Query conversations for all known IDs (array-contains-any supports up to 30)
+          let fromQuery = [];
+          try {
+            const q = allIds.length === 1
+              ? query(collection(db, 'conversations'), where('participants', 'array-contains', allIds[0]))
+              : query(collection(db, 'conversations'), where('participants', 'array-contains-any', allIds.slice(0, 10)));
+            const snap = await getDocs(q);
+            fromQuery = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          } catch (_) {}
+
+          // Also check conversationIds stored on all user docs
           let fromUserDoc = [];
           try {
-            const userSnap = await getDoc(doc(db, 'users', userId));
-            const convIds = userSnap.data()?.conversationIds || [];
-            const extras = await Promise.all(
-              convIds.filter(cid => !fromQuery.find(c => c.id === cid))
-                     .map(cid => getDoc(doc(db, 'conversations', cid)))
-            );
-            fromUserDoc = extras.filter(d => d.exists()).map(d => ({ id: d.id, ...d.data() }));
+            const knownIds = new Set(fromQuery.map(c => c.id));
+            for (const uid of allIds) {
+              const userSnap = await getDoc(doc(db, 'users', uid));
+              const convIds = userSnap.data()?.conversationIds || [];
+              const missing = convIds.filter(cid => !knownIds.has(cid));
+              if (missing.length) {
+                const extras = await Promise.all(missing.map(cid => getDoc(doc(db, 'conversations', cid))));
+                extras.filter(d => d.exists()).forEach(d => {
+                  fromUserDoc.push({ id: d.id, ...d.data() });
+                  knownIds.add(d.id);
+                });
+              }
+            }
           } catch (_) {}
 
           const all = [...fromQuery, ...fromUserDoc];
           const seen = new Set();
-          const unique = all.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
-          const sorted = unique
+          const sorted = all
+            .filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
             .filter(c => !c.deletedFor?.[userId])
-            .sort((a, b) => {
-              const ta = a.lastTime ? new Date(a.lastTime).getTime() : 0;
-              const tb = b.lastTime ? new Date(b.lastTime).getTime() : 0;
-              return tb - ta;
-            });
+            .sort((a, b) => (new Date(b.lastTime || 0) - new Date(a.lastTime || 0)));
           cb(sorted);
         } catch (_) {}
         if (!stopped) timer = setTimeout(poll, 1000);
