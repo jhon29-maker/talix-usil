@@ -257,30 +257,37 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   const getOtherName = (conv) => {
     if (!conv || !currentUser) return '...';
     const myName = currentUser.displayName;
-    // 1. Last message from the other person — but guard against old UIDs returning our own name
-    if (conv.lastMsgFromName && conv.lastMsgFromName !== myName && conv.lastMsgFromId !== 'system') {
+    const myEmail = currentUser.email;
+    // Returns true if the given ID belongs to the current user (checks ID, name, AND email across all known docs)
+    const isMyId = (id) => {
+      if (!id || id === 'system') return true;
+      if (id === currentUser.id) return true;
+      if (conv.participantNames?.[id] === myName) return true;
+      const allUsers = [...allUsersList, ...(DB.get('users') || [])];
+      const u = allUsers.find(x => x.id === id);
+      return !!(u && (u.email === myEmail || u.displayName === myName));
+    };
+    // 1. Last message sender — only if it's not me
+    if (conv.lastMsgFromName && !isMyId(conv.lastMsgFromId)) {
       return conv.lastMsgFromName;
     }
-    // 2. participantNames by VALUE — skip any entry whose name is the current user's own name
+    // 2. participantNames by value — find first entry that isn't me
     if (conv.participantNames) {
-      const otherEntry = Object.entries(conv.participantNames)
-        .find(([k, v]) => v && v !== myName && k !== currentUser.id);
-      if (otherEntry) return otherEntry[1];
+      const other = Object.entries(conv.participantNames).find(([k, v]) => v && v !== myName && !isMyId(k));
+      if (other) return other[1];
     }
-    // 3. participants array — skip any ID whose participantNames value matches our own name
-    const otherId = (conv.participants || []).find(p => {
-      if (p === currentUser.id) return false;
-      const name = conv.participantNames?.[p];
-      if (name && name === myName) return false;
-      return true;
-    });
+    // 3. participants array — first ID that isn't mine
+    const otherId = (conv.participants || []).find(p => !isMyId(p));
     if (otherId && conv.participantNames?.[otherId]) return conv.participantNames[otherId];
-    // 4. Live users list
-    const found = allUsersList.find(u => u.id === otherId) || (DB.get('users') || []).find(u => u.id === otherId);
-    if (found?.displayName) return found.displayName;
+    // 4. Live users list (only if the found user is genuinely a different person)
+    if (otherId) {
+      const allUsers = [...allUsersList, ...(DB.get('users') || [])];
+      const found = allUsers.find(u => u.id === otherId);
+      if (found && found.email !== myEmail) return found.displayName;
+    }
     // 5. Messages of active conversation as last resort
     if (activeConv?.id === conv.id && msgs.length > 0) {
-      const m = msgs.find(x => x.fromName && x.fromName !== myName && x.fromId !== 'system');
+      const m = msgs.find(x => x.fromName && !isMyId(x.fromId));
       if (m?.fromName) return m.fromName;
     }
     return '...';
@@ -288,15 +295,19 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
   const getOtherColor = (conv) => {
     const palette = { demo_ana: '#6DBE7E', demo_carlos: '#5B9BD5', demo_lucia: '#F5A623' };
+    const myEmail = currentUser?.email;
     const myName = currentUser?.displayName;
+    const allUsers = [...allUsersList, ...(DB.get('users') || [])];
     const otherId = (conv?.participants || []).find(p => {
       if (!p || p === currentUser?.id || p === 'demo_joel') return false;
       const name = conv?.participantNames?.[p];
       if (name && name === myName) return false;
+      const u = allUsers.find(x => x.id === p);
+      if (u && (u.email === myEmail || u.displayName === myName)) return false;
       return true;
     });
     if (palette[otherId]) return palette[otherId];
-    const found = allUsersList.find(u => u.id === otherId) || (DB.get('users') || []).find(u => u.id === otherId);
+    const found = allUsers.find(u => u.id === otherId && u.email !== myEmail);
     return found?.avatarColor || '#6DBE7E';
   };
 
