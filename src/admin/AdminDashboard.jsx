@@ -4,8 +4,9 @@ import { PDFReportService } from '../services/pdfReport';
 import { categoryEmoji } from '../components/ui';
 import { DB } from '../services/db';
 import { UsersService } from '../services/users';
-import { FIREBASE_READY, db } from '../config/firebase';
+import { FIREBASE_READY, db, auth } from '../config/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
 const STATUS_COLOR = { activo: '#4CAF50', inactivo: '#999', pendiente: '#F5A623', baneado: '#E53935' };
 const STATUS_BG    = { activo: '#E8F5E9', inactivo: '#F5F5F5', pendiente: '#FFF3E0', baneado: '#FFEBEE' };
@@ -27,6 +28,15 @@ export default function AdminDashboard({ onLogout }) {
     let stopped = false;
     const poll = async () => {
       if (stopped) return;
+      // Admin login is hardcoded (no Firebase Auth) — sign in anonymously so Firestore rules pass
+      if (!auth.currentUser) {
+        try { await signInAnonymously(auth); } catch (_) {}
+      }
+      if (!auth.currentUser) {
+        setScamReportsState(DB.get('scam_reports') || []);
+        if (!stopped) setTimeout(poll, 3000);
+        return;
+      }
       try {
         const snap = await getDocs(collection(db, 'scam_reports'));
         const firestoreReports = snap.docs.map(d => ({ id: d.id, ...d.data() }));

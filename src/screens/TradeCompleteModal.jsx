@@ -50,7 +50,7 @@ function saveScamReport(conv, currentUser, description, photo) {
   DB.set('scam_reports', reports);
 }
 
-export default function TradeCompleteModal({ conv, currentUser, theme, onClose, showToast }) {
+export default function TradeCompleteModal({ conv, currentUser, theme, onClose, onConfirmed, showToast }) {
   const [mode, setMode] = useState(null); // 'complete' | 'scam'
   const [photo, setPhoto] = useState(null);
   const [comment, setComment] = useState('');
@@ -111,6 +111,7 @@ export default function TradeCompleteModal({ conv, currentUser, theme, onClose, 
     }
 
     setLoading(false);
+    if (onConfirmed) onConfirmed();
     setDone(true);
     setDoneModeResult('complete');
   };
