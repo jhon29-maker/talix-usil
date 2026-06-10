@@ -402,6 +402,12 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
   const confirmMeetup = () => {
     if (!meetDate) { showToast('Selecciona fecha y hora', 'error'); return; }
+    const selected = new Date(meetDate).getTime();
+    const minAllowed = Date.now() + 30 * 60 * 1000;
+    if (selected < minAllowed) {
+      showToast('La hora debe ser al menos 30 minutos en el futuro ⏰', 'error');
+      return;
+    }
     ChatService.setMeetup(activeConv.id, meetPlace, meetDate, currentUser);
     setActiveConv(prev => prev ? { ...prev, meetupProposal: { place: meetPlace, dateTime: meetDate, proposedBy: currentUser.id, proposedByName: currentUser.displayName, status: 'pending', proposedAt: new Date().toISOString() } } : prev);
     showToast('¡Propuesta enviada! Tu compañero debe confirmar 📅', 'success');
@@ -688,7 +694,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                       ⏳ Esperando respuesta...
                     </div>
                   )}
-                  {liveConv.meetup && (
+                  {liveConv.meetup && liveConv.status !== 'completado' && (
                     <button
                       onClick={() => setShowTradeComplete(true)}
                       style={{ background: '#E8F5E9', color: '#2E7D32', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
@@ -745,7 +751,9 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                         </div>
                         <div style={{ flex: 1, minWidth: 140 }}>
                           <label style={{ fontSize: 12, fontWeight: 600, color: '#666', display: 'block', marginBottom: 5 }}>📅 Fecha y hora</label>
-                          <input type="datetime-local" value={meetDate} onChange={e => setMeetDate(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #EEE', borderRadius: 10, fontFamily: 'Poppins', fontSize: 13, background: '#FAFBFA', outline: 'none', boxSizing: 'border-box' }} />
+                          <input type="datetime-local" value={meetDate} onChange={e => setMeetDate(e.target.value)}
+                            min={(() => { const d = new Date(Date.now() + 30*60*1000); return new Date(d - d.getTimezoneOffset()*60000).toISOString().slice(0,16); })()}
+                            style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #EEE', borderRadius: 10, fontFamily: 'Poppins', fontSize: 13, background: '#FAFBFA', outline: 'none', boxSizing: 'border-box' }} />
                         </div>
                         <TButton onClick={confirmMeetup} theme={theme} style={{ padding: '10px 16px', whiteSpace: 'nowrap', flexShrink: 0 }}>Proponer 📤</TButton>
                       </div>
@@ -762,8 +770,11 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             <span style={{ fontSize: 11, color: '#795548', fontWeight: 500 }}>Por tu seguridad, <strong>no compartas números de teléfono</strong> ni coordines fuera de TALIX. Todos los intercambios deben realizarse en los Eco-Spots del campus.</span>
           </div>
 
-          {/* Trade confirm alert banner — dismissed per conversation after user responds */}
-          {msgs.some(m => m.isTradeConfirm && m.requesterId !== currentUser?.id) && !tradeAlertDismissed.has(activeConv?.id) && (
+          {/* Trade confirm alert banner — dismissed when trade is done or user responds */}
+          {msgs.some(m => m.isTradeConfirm && m.requesterId !== currentUser?.id)
+            && !tradeAlertDismissed.has(activeConv?.id)
+            && (convos.find(c => c.id === activeConv?.id) || activeConv)?.status !== 'completado'
+            && (
             <div style={{ margin: '10px 16px 0', background: 'linear-gradient(135deg, #FFFDE7, #FFF8E1)', border: '2px solid #FFD54F', borderRadius: 18, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 16px rgba(255,193,7,0.25)', flexShrink: 0 }}>
               <div style={{ fontSize: 32, flexShrink: 0 }}>🤝</div>
               <div style={{ flex: 1 }}>

@@ -4,6 +4,8 @@ import { PDFReportService } from '../services/pdfReport';
 import { categoryEmoji } from '../components/ui';
 import { DB } from '../services/db';
 import { UsersService } from '../services/users';
+import { FIREBASE_READY, db } from '../config/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 const STATUS_COLOR = { activo: '#4CAF50', inactivo: '#999', pendiente: '#F5A623', baneado: '#E53935' };
 const STATUS_BG    = { activo: '#E8F5E9', inactivo: '#F5F5F5', pendiente: '#FFF3E0', baneado: '#FFEBEE' };
@@ -17,6 +19,32 @@ export default function AdminDashboard({ onLogout }) {
   const [banReason, setBanReason] = useState('');
   const [banIp, setBanIp] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null); // { userId, displayName }
+  const [scamReportsState, setScamReportsState] = useState(DB.get('scam_reports') || []);
+
+  // Poll Firestore for scam reports every 3s
+  useEffect(() => {
+    if (!FIREBASE_READY) return;
+    let stopped = false;
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const snap = await getDocs(collection(db, 'scam_reports'));
+        const firestoreReports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const local = DB.get('scam_reports') || [];
+        // Merge: prefer Firestore entries, keep local-only entries by id
+        const allById = {};
+        [...local, ...firestoreReports].forEach(r => { if (r.id) allById[r.id] = r; });
+        const merged = Object.values(allById).sort((a, b) => (b.date || '') > (a.date || '') ? 1 : -1);
+        DB.set('scam_reports', merged);
+        setScamReportsState(merged);
+      } catch (_) {
+        setScamReportsState(DB.get('scam_reports') || []);
+      }
+      if (!stopped) setTimeout(poll, 3000);
+    };
+    poll();
+    return () => { stopped = true; };
+  }, []);
 
   useEffect(() => {
     // Subscribe to users in real-time (Firestore or localStorage)
@@ -43,7 +71,7 @@ export default function AdminDashboard({ onLogout }) {
     return () => { unsub(); clearInterval(interval); };
   }, []);
 
-  const scamReports = (DB.get('scam_reports') || []);
+  const scamReports = scamReportsState;
   const emailRegistry = (DB.get('email_registry') || []);
   // Merge users + email_registry, deduplicate by email
   const allEmails = Object.values(

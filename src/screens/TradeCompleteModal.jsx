@@ -3,7 +3,7 @@ import { DB } from '../services/db';
 import { Auth } from '../services/auth';
 import { ChatService } from '../services/chat';
 import { FIREBASE_READY, db } from '../config/firebase';
-import { doc, updateDoc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 const POINTS_PER_TRADE = 10;
 
@@ -93,13 +93,16 @@ export default function TradeCompleteModal({ conv, currentUser, theme, onClose, 
 
     if (FIREBASE_READY) {
       try {
+        // Check if the other party already confirmed — don't loop notifications
+        const convSnap = await getDoc(doc(db, 'conversations', conv.id));
+        const alreadyCompleted = convSnap.exists() && convSnap.data()?.status === 'completado';
         await addDoc(collection(db, 'conversations', conv.id, 'messages'), sysMsg);
         await setDoc(doc(db, 'conversations', conv.id), { status: 'completado', completedAt: new Date().toISOString() }, { merge: true });
+        // Only notify the other party if THIS is the first confirmation
+        if (!alreadyCompleted && otherId) {
+          await ChatService.notifyTradeComplete(conv.id, currentUser, otherId, conv.participants || [], conv.itemTitle);
+        }
       } catch (_) {}
-      // Notify the other participant to confirm
-      if (otherId) {
-        await ChatService.notifyTradeComplete(conv.id, currentUser, otherId, conv.participants || [], conv.itemTitle);
-      }
     } else {
       const convos = DB.get('conversations') || [];
       const idx = convos.findIndex(c => c.id === conv.id);
@@ -115,13 +118,37 @@ export default function TradeCompleteModal({ conv, currentUser, theme, onClose, 
   const confirmScam = async () => {
     if (!comment.trim()) { showToast('Por favor describe lo que ocurrió', 'error'); return; }
     setLoading(true);
-    saveScamReport(conv, currentUser, comment, photo);
-    const sysMsg = {
-      convId: conv.id, fromId: 'system', fromName: 'TALIX', fromColor: '#E53935',
-      text: '🚨 Se ha reportado una incidencia en este trueque. El equipo de TALIX revisará el caso.',
-      isSystem: true, read: false, createdAt: new Date().toISOString(),
+    const reportData = {
+      convId: conv.id,
+      itemTitle: conv.itemTitle || '',
+      reportedBy: currentUser.id,
+      reporterName: currentUser.displayName,
+      participants: conv.participants || [],
+      description: comment,
+      photo: photo || null,
+      date: new Date().toISOString(),
+      status: 'pendiente',
     };
-    DB.push('msgs_' + conv.id, sysMsg);
+    saveScamReport(conv, currentUser, comment, photo);
+    if (FIREBASE_READY) {
+      try {
+        await addDoc(collection(db, 'scam_reports'), { ...reportData, createdAt: serverTimestamp() });
+        // Also add system message to conversation in Firestore
+        const sysMsg = {
+          convId: conv.id, fromId: 'system', fromName: 'TALIX', fromColor: '#E53935',
+          text: '🚨 Se ha reportado una incidencia en este trueque. El equipo de TALIX revisará el caso.',
+          isSystem: true, read: false, createdAt: serverTimestamp(),
+        };
+        await addDoc(collection(db, 'conversations', conv.id, 'messages'), sysMsg);
+      } catch (_) {}
+    } else {
+      const sysMsg = {
+        convId: conv.id, fromId: 'system', fromName: 'TALIX', fromColor: '#E53935',
+        text: '🚨 Se ha reportado una incidencia en este trueque. El equipo de TALIX revisará el caso.',
+        isSystem: true, read: false, createdAt: new Date().toISOString(),
+      };
+      DB.push('msgs_' + conv.id, sysMsg);
+    }
     setLoading(false);
     setDone(true);
     setDoneModeResult('scam');
