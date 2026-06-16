@@ -1,8 +1,10 @@
 import { AdminService } from './admin';
+import { DB } from './db';
 
 export const PDFReportService = {
   generateAdminReport: () => {
     const stats = AdminService.getStats();
+    const scamReports = DB.get('scam_reports') || [];
     const now = new Date().toLocaleDateString('es', {
       day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
@@ -128,6 +130,29 @@ export const PDFReportService = {
       ${stats.users.length === 0 ? '<tr><td colspan="3" style="text-align:center;color:#AAA;">Sin datos</td></tr>' : ''}
     </tbody>
   </table>
+
+  <h2>🚨 Reportes de Estafa (${scamReports.length})</h2>
+  ${scamReports.length === 0
+    ? '<div class="section-info">Sin reportes de estafa registrados.</div>'
+    : `<table>
+    <thead><tr><th>#</th><th>Reportado por</th><th>Artículo</th><th>Descripción</th><th>Fecha</th><th>Estado</th></tr></thead>
+    <tbody>
+      ${scamReports.map((r, i) => {
+        const text = r.description || r.comment || '—';
+        const rawDate = r.date || (typeof r.createdAt === 'string' ? r.createdAt : '');
+        const dateLabel = rawDate ? new Date(rawDate).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+        return `<tr>
+          <td>${i + 1}</td>
+          <td><strong>${r.reporterName || '—'}</strong></td>
+          <td>${r.itemTitle || 'No especificado'}</td>
+          <td style="max-width:300px;">${text.slice(0, 120)}${text.length > 120 ? '…' : ''}</td>
+          <td style="white-space:nowrap;">${dateLabel}</td>
+          <td><span class="badge" style="background:#FFF3E0;color:#E65100;">${r.status || 'pendiente'}</span></td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`
+  }
 
   <div class="footer">
     <div>TALIX · Plataforma de Trueque Universitario · Universidad San Ignacio de Loyola</div>

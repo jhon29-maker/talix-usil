@@ -704,7 +704,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                       ⏳ Esperando respuesta...
                     </div>
                   )}
-                  {liveConv.meetup && liveConv.status !== 'completado' && !msgs.some(m => m.isSystem && m.text?.startsWith('🎉 ¡Trueque completado')) && (
+                  {liveConv.meetup && liveConv.status !== 'completado' && !msgs.some(m => m.isSystem && m.text?.startsWith('🎉 ¡Trueque completado') && currentUser?.displayName && m.text?.includes(currentUser.displayName)) && (
                     <button
                       onClick={() => setShowTradeComplete(true)}
                       style={{ background: '#E8F5E9', color: '#2E7D32', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
@@ -784,7 +784,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
           {msgs.some(m => m.isTradeConfirm && m.requesterId !== currentUser?.id)
             && !tradeAlertDismissed.has(activeConv?.id)
             && (convos.find(c => c.id === activeConv?.id) || activeConv)?.status !== 'completado'
-            && !msgs.some(m => m.isSystem && m.text?.startsWith('🎉 ¡Trueque completado'))
+            && !msgs.some(m => m.isSystem && m.text?.startsWith('🎉 ¡Trueque completado') && currentUser?.displayName && m.text?.includes(currentUser.displayName))
             && (
             <div style={{ margin: '10px 16px 0', background: 'linear-gradient(135deg, #FFFDE7, #FFF8E1)', border: '2px solid #FFD54F', borderRadius: 18, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 16px rgba(255,193,7,0.25)', flexShrink: 0 }}>
               <div style={{ fontSize: 32, flexShrink: 0 }}>🤝</div>
@@ -829,7 +829,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                 if (m.isTradeConfirm && m.requesterId !== currentUser?.id) {
                   const isLatest = i === lastTradeConfirmIdx
                     && !tradeAlertDismissed.has(activeConv?.id)
-                    && !msgs.some(m => m.isSystem && m.text?.startsWith('🎉 ¡Trueque completado'));
+                    && !msgs.some(m => m.isSystem && m.text?.startsWith('🎉 ¡Trueque completado') && currentUser?.displayName && m.text?.includes(currentUser.displayName));
                   return (
                     <div key={m.id || i} style={{ textAlign: 'center', padding: '8px 0' }}>
                       <div style={{ display: 'inline-block', background: '#FFF8E1', border: '1.5px solid #FFE082', borderRadius: 18, padding: '14px 20px', maxWidth: 320 }}>

@@ -48,7 +48,8 @@ export default function AdminDashboard({ onLogout }) {
         // Merge: prefer Firestore entries, keep local-only entries by id
         const allById = {};
         [...local, ...firestoreReports].forEach(r => { if (r.id) allById[r.id] = r; });
-        const merged = Object.values(allById).sort((a, b) => (b.date || '') > (a.date || '') ? 1 : -1);
+        const getDateStr = r => { const d = r.date || r.createdAt; if (!d) return ''; if (typeof d === 'string') return d; if (d?.toDate) return d.toDate().toISOString(); return ''; };
+        const merged = Object.values(allById).sort((a, b) => getDateStr(b) > getDateStr(a) ? 1 : getDateStr(b) < getDateStr(a) ? -1 : 0);
         DB.set('scam_reports', merged);
         setScamReportsState(merged);
       } catch (_) {
