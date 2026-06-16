@@ -5,7 +5,7 @@ import { categoryEmoji } from '../components/ui';
 import { DB } from '../services/db';
 import { UsersService } from '../services/users';
 import { FIREBASE_READY, db, auth } from '../config/firebase';
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 const STATUS_COLOR = { activo: '#4CAF50', inactivo: '#999', pendiente: '#F5A623', baneado: '#E53935' };
@@ -25,6 +25,8 @@ export default function AdminDashboard({ onLogout }) {
   const [replyMsg, setReplyMsg] = useState('');
   const [replySending, setReplySending] = useState(false);
   const [replyDone, setReplyDone] = useState(false);
+  const [detailModal, setDetailModal] = useState(null); // { report, evidenceMsgs: null }
+  const [fullImg, setFullImg] = useState(null); // URL to show full-screen
 
   // Poll Firestore for scam reports every 3s
   useEffect(() => {
@@ -110,6 +112,39 @@ export default function AdminDashboard({ onLogout }) {
       setReplyMsg('');
     } catch (_) {}
     setReplySending(false);
+  };
+
+  // Fetch trade evidence photos from conversation when detail modal opens
+  useEffect(() => {
+    if (!detailModal?.report?.convId || !FIREBASE_READY) return;
+    let stopped = false;
+    (async () => {
+      try {
+        if (!auth.currentUser) { try { await signInAnonymously(auth); } catch(_) {} }
+        const snap = await getDocs(collection(db, 'conversations', detailModal.report.convId, 'messages'));
+        if (stopped) return;
+        const evidenceMsgs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .filter(m => m.evidencePhoto || m.imageUrl)
+          .sort((a, b) => {
+            const ta = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+            const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+            return tb - ta;
+          });
+        setDetailModal(prev => prev ? { ...prev, evidenceMsgs } : null);
+      } catch (_) {}
+    })();
+    return () => { stopped = true; };
+  }, [detailModal?.report?.convId]);
+
+  const resolveReport = async (report) => {
+    if (FIREBASE_READY) {
+      try { await updateDoc(doc(db, 'scam_reports', report.id), { status: 'resuelto' }); } catch(_) {}
+    }
+    const all = DB.get('scam_reports') || [];
+    const idx = all.findIndex(r => r.id === report.id);
+    if (idx >= 0) { all[idx] = { ...all[idx], status: 'resuelto' }; DB.set('scam_reports', all); }
+    setScamReportsState(prev => prev.map(r => r.id === report.id ? { ...r, status: 'resuelto' } : r));
+    setDetailModal(prev => prev ? { ...prev, report: { ...prev.report, status: 'resuelto' } } : null);
   };
 
   const emailRegistry = (DB.get('email_registry') || []);
@@ -205,6 +240,99 @@ export default function AdminDashboard({ onLogout }) {
           </div>
         </div>
       )}
+
+      {/* Full-image overlay */}
+      {fullImg && (
+        <div onClick={() => setFullImg(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
+          <img src={fullImg} alt="evidencia" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, objectFit: 'contain' }} />
+          <button onClick={() => setFullImg(null)} style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        </div>
+      )}
+
+      {/* Report detail modal */}
+      {detailModal && (() => {
+        const r = detailModal.report;
+        const reportText = r.description || r.comment || '';
+        const reportPhoto = r.photo || r.photoUrl || null;
+        const reportDate = r.date || (typeof r.createdAt === 'string' ? r.createdAt : r.createdAt?.toDate?.()?.toISOString?.() || '') || '';
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <div style={{ background: '#1A2332', borderRadius: 24, width: '100%', maxWidth: 600, maxHeight: '88vh', overflowY: 'auto', border: '1px solid rgba(229,57,53,0.3)' }}>
+              {/* Header */}
+              <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: '#1A2332', zIndex: 1 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: '#E57373' }}>🚨 Reporte de {r.reporterName}</div>
+                  <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{reportDate ? new Date(reportDate).toLocaleString('es') : ''} · {r.itemTitle || 'Sin artículo'}</div>
+                </div>
+                <button onClick={() => setDetailModal(null)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '50%', width: 34, height: 34, color: '#888', fontSize: 16, cursor: 'pointer' }}>✕</button>
+              </div>
+
+              <div style={{ padding: '20px 24px' }}>
+                {/* Status */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+                  <span style={{ background: r.status === 'resuelto' ? 'rgba(76,175,80,0.15)' : 'rgba(245,166,35,0.15)', color: r.status === 'resuelto' ? '#4CAF50' : '#F5A623', padding: '5px 14px', borderRadius: 100, fontSize: 12, fontWeight: 700 }}>
+                    {r.status === 'resuelto' ? '✅ Resuelto' : '⏳ Pendiente'}
+                  </span>
+                  {r.status !== 'resuelto' && (
+                    <button onClick={() => resolveReport(r)} style={{ padding: '6px 16px', background: 'rgba(76,175,80,0.15)', border: '1px solid rgba(76,175,80,0.3)', borderRadius: 100, color: '#4CAF50', fontFamily: 'Poppins', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>✅ Marcar como resuelto</button>
+                  )}
+                  <button onClick={() => { setDetailModal(null); setReplyModal({ report: r }); setReplyMsg(''); setReplyDone(false); }} style={{ padding: '6px 16px', background: 'rgba(229,57,53,0.12)', border: '1px solid rgba(229,57,53,0.25)', borderRadius: 100, color: '#E57373', fontFamily: 'Poppins', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>📨 Responder</button>
+                </div>
+
+                {/* Description */}
+                {reportText ? (
+                  <div style={{ background: '#0F1923', borderRadius: 12, padding: '14px 16px', marginBottom: 18, fontSize: 13, color: '#CCC', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: 11, color: '#555', marginBottom: 6, fontWeight: 600 }}>DESCRIPCIÓN DEL REPORTE</div>
+                    "{reportText}"
+                  </div>
+                ) : <div style={{ color: '#555', fontSize: 13, marginBottom: 18 }}>Sin descripción.</div>}
+
+                {/* Report photo */}
+                {reportPhoto && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 11, color: '#555', fontWeight: 600, marginBottom: 8 }}>📷 FOTO DEL REPORTE</div>
+                    <img
+                      src={reportPhoto} alt="evidencia"
+                      onClick={() => setFullImg(reportPhoto)}
+                      style={{ maxWidth: '100%', maxHeight: 280, objectFit: 'cover', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', cursor: 'zoom-in', display: 'block' }}
+                    />
+                    <div style={{ fontSize: 11, color: '#444', marginTop: 4 }}>Haz clic para ver a tamaño completo</div>
+                  </div>
+                )}
+
+                {/* Evidence photos from trade confirmations */}
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: '#555', fontWeight: 600, marginBottom: 10 }}>📸 FOTOS DE CONFIRMACIÓN DEL TRUEQUE</div>
+                  {!r.convId ? (
+                    <div style={{ fontSize: 12, color: '#444' }}>Sin conversación asociada.</div>
+                  ) : detailModal.evidenceMsgs === null ? (
+                    <div style={{ fontSize: 12, color: '#555' }}>Cargando fotos...</div>
+                  ) : detailModal.evidenceMsgs.length === 0 ? (
+                    <div style={{ fontSize: 12, color: '#444' }}>No hay fotos de confirmación en esta conversación.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {detailModal.evidenceMsgs.map(m => {
+                        const src = m.evidencePhoto || m.imageUrl;
+                        return (
+                          <div key={m.id} style={{ position: 'relative' }}>
+                            <img
+                              src={src} alt="foto"
+                              onClick={() => setFullImg(src)}
+                              style={{ width: 140, height: 100, objectFit: 'cover', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', cursor: 'zoom-in' }}
+                            />
+                            {m.fromName && <div style={{ fontSize: 10, color: '#666', marginTop: 3, textAlign: 'center' }}>{m.fromName}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Admin sidebar */}
       <div style={{ width: 240, background: '#1A2332', display: 'flex', flexDirection: 'column', padding: '0 0 24px', height: '100vh', position: 'fixed', left: 0, top: 0 }}>
         <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
@@ -533,19 +661,31 @@ export default function AdminDashboard({ onLogout }) {
                 <div key={r.id} style={{ padding: '18px 20px', borderBottom: i < scamReports.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                     <div style={{ fontSize: 32, flexShrink: 0 }}>🚨</div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#E57373' }}>Reporte de {r.reporterName}</div>
                         <div style={{ fontSize: 11, color: '#444' }}>{reportDate ? new Date(reportDate).toLocaleDateString('es') : ''}</div>
                       </div>
                       <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>📦 Artículo: {r.itemTitle || 'No especificado'}</div>
                       {reportText ? <div style={{ fontSize: 13, color: '#CCC', lineHeight: 1.5, marginBottom: 8 }}>"{reportText}"</div> : null}
-                      {reportPhoto && <img src={reportPhoto} alt="evidencia" style={{ maxWidth: 240, maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', display: 'block', marginBottom: 6 }} />}
+                      {reportPhoto && (
+                        <img
+                          src={reportPhoto} alt="evidencia"
+                          onClick={() => setFullImg(reportPhoto)}
+                          style={{ maxWidth: 200, maxHeight: 130, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', display: 'block', marginBottom: 6, cursor: 'zoom-in' }}
+                        />
+                      )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>
-                      <span style={{ background: r.status === 'pendiente' ? 'rgba(245,166,35,0.15)' : 'rgba(76,175,80,0.15)', color: r.status === 'pendiente' ? '#F5A623' : '#4CAF50', padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600 }}>
-                        {r.status}
+                      <span style={{ background: r.status === 'resuelto' ? 'rgba(76,175,80,0.15)' : 'rgba(245,166,35,0.15)', color: r.status === 'resuelto' ? '#4CAF50' : '#F5A623', padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600 }}>
+                        {r.status || 'pendiente'}
                       </span>
+                      <button
+                        onClick={() => setDetailModal({ report: r, evidenceMsgs: null })}
+                        style={{ padding: '7px 14px', background: 'rgba(91,155,213,0.15)', border: '1px solid rgba(91,155,213,0.3)', borderRadius: 100, color: '#5B9BD5', fontFamily: 'Poppins', fontWeight: 600, fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        🔍 Ver detalle
+                      </button>
                       <button
                         onClick={() => { setReplyModal({ report: r }); setReplyMsg(''); setReplyDone(false); }}
                         style={{ padding: '7px 14px', background: 'rgba(229,57,53,0.15)', border: '1px solid rgba(229,57,53,0.3)', borderRadius: 100, color: '#E57373', fontFamily: 'Poppins', fontWeight: 600, fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
