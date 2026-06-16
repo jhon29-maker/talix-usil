@@ -5,7 +5,7 @@ import { categoryEmoji } from '../components/ui';
 import { DB } from '../services/db';
 import { UsersService } from '../services/users';
 import { FIREBASE_READY, db, auth } from '../config/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 const STATUS_COLOR = { activo: '#4CAF50', inactivo: '#999', pendiente: '#F5A623', baneado: '#E53935' };
@@ -21,6 +21,10 @@ export default function AdminDashboard({ onLogout }) {
   const [banIp, setBanIp] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null); // { userId, displayName }
   const [scamReportsState, setScamReportsState] = useState(DB.get('scam_reports') || []);
+  const [replyModal, setReplyModal] = useState(null); // { report }
+  const [replyMsg, setReplyMsg] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [replyDone, setReplyDone] = useState(false);
 
   // Poll Firestore for scam reports every 3s
   useEffect(() => {
@@ -82,6 +86,31 @@ export default function AdminDashboard({ onLogout }) {
   }, []);
 
   const scamReports = scamReportsState;
+
+  const sendAdminReply = async () => {
+    if (!replyMsg.trim() || !replyModal) return;
+    setReplySending(true);
+    try {
+      const { convId, reporterName } = replyModal.report;
+      if (convId && FIREBASE_READY) {
+        await addDoc(collection(db, 'conversations', convId, 'messages'), {
+          convId,
+          fromId: 'system',
+          fromName: 'TALIX Admin',
+          fromColor: '#E53935',
+          text: `🔔 Administrador TALIX: ${replyMsg.trim()}`,
+          isSystem: true,
+          isAdminMsg: true,
+          read: false,
+          createdAt: serverTimestamp(),
+        });
+      }
+      setReplyDone(true);
+      setReplyMsg('');
+    } catch (_) {}
+    setReplySending(false);
+  };
+
   const emailRegistry = (DB.get('email_registry') || []);
   // Merge users + email_registry, deduplicate by email
   const allEmails = Object.values(
@@ -135,6 +164,46 @@ export default function AdminDashboard({ onLogout }) {
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'Poppins, sans-serif', background: '#0F1923' }}>
+      {/* Admin reply modal */}
+      {replyModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#1A2332', borderRadius: 20, width: 460, padding: 28, border: '1px solid rgba(229,57,53,0.3)' }}>
+            {replyDone ? (
+              <>
+                <div style={{ textAlign: 'center', padding: '12px 0' }}>
+                  <div style={{ fontSize: 52, marginBottom: 10 }}>✅</div>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>Mensaje enviado</div>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 20 }}>El mensaje aparecerá en la conversación de <strong style={{ color: '#CCC' }}>{replyModal.report.reporterName}</strong>.</div>
+                  <button onClick={() => { setReplyModal(null); setReplyDone(false); }} style={{ padding: '10px 28px', background: '#F5A623', border: 'none', borderRadius: 100, color: '#1C2B2B', fontFamily: 'Poppins', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Cerrar</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 4 }}>📨 Responder al usuario</div>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 18 }}>El mensaje aparecerá en el chat de <strong style={{ color: '#CCC' }}>{replyModal.report.reporterName}</strong> como mensaje del administrador.</div>
+                <div style={{ background: '#0F1923', borderRadius: 12, padding: '12px 14px', marginBottom: 16, fontSize: 12, color: '#888', lineHeight: 1.6 }}>
+                  <strong style={{ color: '#E57373' }}>Caso:</strong> {replyModal.report.description || replyModal.report.comment || 'Sin descripción'}<br />
+                  <strong style={{ color: '#E57373' }}>Artículo:</strong> {replyModal.report.itemTitle || 'No especificado'}
+                </div>
+                <label style={{ fontSize: 12, color: '#888', display: 'block', marginBottom: 6 }}>Mensaje al usuario</label>
+                <textarea
+                  value={replyMsg}
+                  onChange={e => setReplyMsg(e.target.value)}
+                  placeholder="Ej: Hemos revisado tu reporte y estamos tomando medidas. El usuario será sancionado en 48 horas..."
+                  rows={4}
+                  style={{ width: '100%', padding: '10px 14px', background: '#0F1923', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontFamily: 'Poppins', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box', marginBottom: 18 }}
+                />
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => { setReplyModal(null); setReplyMsg(''); }} style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#888', fontFamily: 'Poppins', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                  <button onClick={sendAdminReply} disabled={replySending || !replyMsg.trim()} style={{ flex: 2, padding: '10px', background: replySending || !replyMsg.trim() ? '#333' : '#E53935', border: 'none', borderRadius: 10, color: '#fff', fontFamily: 'Poppins', fontWeight: 700, fontSize: 13, cursor: replySending || !replyMsg.trim() ? 'default' : 'pointer' }}>
+                    {replySending ? 'Enviando...' : '📨 Enviar mensaje'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {/* Admin sidebar */}
       <div style={{ width: 240, background: '#1A2332', display: 'flex', flexDirection: 'column', padding: '0 0 24px', height: '100vh', position: 'fixed', left: 0, top: 0 }}>
         <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
@@ -472,9 +541,17 @@ export default function AdminDashboard({ onLogout }) {
                       {reportText ? <div style={{ fontSize: 13, color: '#CCC', lineHeight: 1.5, marginBottom: 8 }}>"{reportText}"</div> : null}
                       {reportPhoto && <img src={reportPhoto} alt="evidencia" style={{ maxWidth: 240, maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', display: 'block', marginBottom: 6 }} />}
                     </div>
-                    <span style={{ background: r.status === 'pendiente' ? 'rgba(245,166,35,0.15)' : 'rgba(76,175,80,0.15)', color: r.status === 'pendiente' ? '#F5A623' : '#4CAF50', padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
-                      {r.status}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>
+                      <span style={{ background: r.status === 'pendiente' ? 'rgba(245,166,35,0.15)' : 'rgba(76,175,80,0.15)', color: r.status === 'pendiente' ? '#F5A623' : '#4CAF50', padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600 }}>
+                        {r.status}
+                      </span>
+                      <button
+                        onClick={() => { setReplyModal({ report: r }); setReplyMsg(''); setReplyDone(false); }}
+                        style={{ padding: '7px 14px', background: 'rgba(229,57,53,0.15)', border: '1px solid rgba(229,57,53,0.3)', borderRadius: 100, color: '#E57373', fontFamily: 'Poppins', fontWeight: 600, fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        📨 Responder
+                      </button>
+                    </div>
                   </div>
                 </div>
               );})}

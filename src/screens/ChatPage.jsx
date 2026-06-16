@@ -262,7 +262,10 @@ export default function ChatPage({ currentUser, theme, showToast }) {
     setSendingReport(true);
     try {
       let photoUrl = null;
-      if (reportPhoto) photoUrl = await ChatService.uploadPhoto(activeConv?.id || 'reports', reportPhoto);
+      if (reportPhoto) {
+        photoUrl = await ChatService.uploadPhoto(activeConv?.id || 'reports', reportPhoto);
+        if (!photoUrl) photoUrl = await compressImage(reportPhoto); // fallback to inline base64
+      }
       const report = {
         type: reportTab,
         reporterId: currentUser?.id,
