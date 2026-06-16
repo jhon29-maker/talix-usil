@@ -455,25 +455,29 @@ export default function AdminDashboard({ onLogout }) {
               </div>
               {scamReports.length === 0 ? (
                 <div style={{ padding: '40px', textAlign: 'center', color: '#444', fontSize: 13 }}>Sin reportes de estafa</div>
-              ) : scamReports.map((r, i) => (
+              ) : scamReports.map((r, i) => {
+                const reportText = r.description || r.comment || '';
+                const reportPhoto = r.photo || r.photoUrl || null;
+                const reportDate = r.date || (r.createdAt?.toDate ? r.createdAt.toDate().toISOString() : r.createdAt) || '';
+                return (
                 <div key={r.id} style={{ padding: '18px 20px', borderBottom: i < scamReports.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                     <div style={{ fontSize: 32, flexShrink: 0 }}>🚨</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#E57373' }}>Reporte de {r.reporterName}</div>
-                        <div style={{ fontSize: 11, color: '#444' }}>{r.date ? new Date(r.date).toLocaleDateString('es') : ''}</div>
+                        <div style={{ fontSize: 11, color: '#444' }}>{reportDate ? new Date(reportDate).toLocaleDateString('es') : ''}</div>
                       </div>
                       <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>📦 Artículo: {r.itemTitle || 'No especificado'}</div>
-                      <div style={{ fontSize: 13, color: '#CCC', lineHeight: 1.5, marginBottom: 8 }}>"{r.description}"</div>
-                      {r.photo && <img src={r.photo} alt="evidencia" style={{ width: 120, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }} />}
+                      {reportText ? <div style={{ fontSize: 13, color: '#CCC', lineHeight: 1.5, marginBottom: 8 }}>"{reportText}"</div> : null}
+                      {reportPhoto && <img src={reportPhoto} alt="evidencia" style={{ maxWidth: 240, maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', display: 'block', marginBottom: 6 }} />}
                     </div>
                     <span style={{ background: r.status === 'pendiente' ? 'rgba(245,166,35,0.15)' : 'rgba(76,175,80,0.15)', color: r.status === 'pendiente' ? '#F5A623' : '#4CAF50', padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
                       {r.status}
                     </span>
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
           )}
 
