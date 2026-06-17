@@ -7,6 +7,22 @@ import { doc, updateDoc, setDoc, getDoc, addDoc, collection, serverTimestamp } f
 
 const POINTS_PER_TRADE = 10;
 
+async function compressImage(dataUrl, maxPx = 480, quality = 0.65) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 function awardPoints(userId, delta = POINTS_PER_TRADE) {
   const users = DB.get('users') || [];
   const idx = users.findIndex(u => u.id === userId);
@@ -84,10 +100,11 @@ export default function TradeCompleteModal({ conv, currentUser, theme, onClose, 
     [currentUser.id, otherId].filter(Boolean).forEach(uid => awardPoints(uid));
     if (stars > 0 && otherId) saveRating(otherId, currentUser.id, stars, comment);
 
+    const compressed = photo ? await compressImage(photo) : null;
     const sysMsg = {
-      convId: conv.id, fromId: 'system', fromName: 'TALIX', fromColor: '#2E7D32',
+      convId: conv.id, fromId: 'system', fromName: currentUser.displayName || 'TALIX', fromColor: '#2E7D32',
       text: `🎉 ¡Trueque completado por ${currentUser.displayName}! Ambas partes ganaron +${POINTS_PER_TRADE} pts TALIX.${comment ? ` "${comment}"` : ''}`,
-      isSystem: true, evidencePhoto: photo || null, read: false,
+      isSystem: true, evidencePhoto: compressed || null, read: false,
       createdAt: FIREBASE_READY ? serverTimestamp() : new Date().toISOString(),
     };
 
@@ -119,6 +136,7 @@ export default function TradeCompleteModal({ conv, currentUser, theme, onClose, 
   const confirmScam = async () => {
     if (!comment.trim()) { showToast('Por favor describe lo que ocurrió', 'error'); return; }
     setLoading(true);
+    const compressed = photo ? await compressImage(photo) : null;
     const reportData = {
       convId: conv.id,
       itemTitle: conv.itemTitle || '',
@@ -126,11 +144,11 @@ export default function TradeCompleteModal({ conv, currentUser, theme, onClose, 
       reporterName: currentUser.displayName,
       participants: conv.participants || [],
       description: comment,
-      photo: photo || null,
+      photo: compressed || null,
       date: new Date().toISOString(),
       status: 'pendiente',
     };
-    saveScamReport(conv, currentUser, comment, photo);
+    saveScamReport(conv, currentUser, comment, compressed);
     if (FIREBASE_READY) {
       try {
         await addDoc(collection(db, 'scam_reports'), { ...reportData, createdAt: serverTimestamp() });

@@ -5,7 +5,7 @@ import { categoryEmoji } from '../components/ui';
 import { DB } from '../services/db';
 import { UsersService } from '../services/users';
 import { FIREBASE_READY, db, auth } from '../config/firebase';
-import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp, query, where } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 const STATUS_COLOR = { activo: '#4CAF50', inactivo: '#999', pendiente: '#F5A623', baneado: '#E53935' };
@@ -27,6 +27,8 @@ export default function AdminDashboard({ onLogout }) {
   const [replyDone, setReplyDone] = useState(false);
   const [detailModal, setDetailModal] = useState(null); // { report, evidenceMsgs: null }
   const [fullImg, setFullImg] = useState(null); // URL to show full-screen
+  const [completedTrades, setCompletedTrades] = useState([]);
+  const [tradeDetail, setTradeDetail] = useState(null); // { trade, evidenceMsgs: null }
 
   // Poll Firestore for scam reports every 3s
   useEffect(() => {
@@ -62,6 +64,48 @@ export default function AdminDashboard({ onLogout }) {
     poll();
     return () => { stopped = true; };
   }, []);
+
+  // Poll Firestore for completed trades every 5s
+  useEffect(() => {
+    if (!FIREBASE_READY) return;
+    let stopped = false;
+    const poll = async () => {
+      if (stopped) return;
+      if (!auth.currentUser) {
+        try { await signInAnonymously(auth); } catch (_) {}
+      }
+      if (!auth.currentUser) { if (!stopped) setTimeout(poll, 5000); return; }
+      try {
+        const snap = await getDocs(query(collection(db, 'conversations'), where('status', '==', 'completado')));
+        if (!stopped) setCompletedTrades(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (_) {}
+      if (!stopped) setTimeout(poll, 5000);
+    };
+    poll();
+    return () => { stopped = true; };
+  }, []);
+
+  // Fetch evidence photos when trade detail modal opens
+  useEffect(() => {
+    if (!tradeDetail?.trade?.id || !FIREBASE_READY) return;
+    let stopped = false;
+    (async () => {
+      try {
+        if (!auth.currentUser) { try { await signInAnonymously(auth); } catch(_) {} }
+        const snap = await getDocs(collection(db, 'conversations', tradeDetail.trade.id, 'messages'));
+        if (stopped) return;
+        const evidenceMsgs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .filter(m => m.evidencePhoto || m.imageUrl)
+          .sort((a, b) => {
+            const ta = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+            const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+            return ta - tb;
+          });
+        setTradeDetail(prev => prev ? { ...prev, evidenceMsgs } : null);
+      } catch (_) {}
+    })();
+    return () => { stopped = true; };
+  }, [tradeDetail?.trade?.id]);
 
   useEffect(() => {
     // Subscribe to users in real-time (Firestore or localStorage)
@@ -162,6 +206,7 @@ export default function AdminDashboard({ onLogout }) {
     { key: 'emails',   icon: '📧', label: `Correos (${allEmails.length})` },
     { key: 'items',    icon: '📦', label: `Artículos (${stats.items.length})` },
     { key: 'chat',     icon: '💬', label: `Chats (${stats.convos.length})` },
+    { key: 'trades',   icon: '🔄', label: `Trueques (${completedTrades.length})` },
     { key: 'scams',    icon: '🚨', label: `Estafas (${scamReports.length})` },
     { key: 'reports',  icon: '📈', label: 'Reportes' },
   ];
@@ -327,6 +372,49 @@ export default function AdminDashboard({ onLogout }) {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Trade detail modal */}
+      {tradeDetail && (() => {
+        const t = tradeDetail.trade;
+        const completedAt = t.completedAt ? new Date(t.completedAt).toLocaleString('es') : '';
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <div style={{ background: '#1A2332', borderRadius: 24, width: '100%', maxWidth: 600, maxHeight: '88vh', overflowY: 'auto', border: '1px solid rgba(109,190,126,0.3)' }}>
+              <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: '#1A2332', zIndex: 1 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: '#6DBE7E' }}>🔄 {t.itemTitle || 'Trueque completado'}</div>
+                  <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{completedAt}</div>
+                </div>
+                <button onClick={() => setTradeDetail(null)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '50%', width: 34, height: 34, color: '#888', fontSize: 16, cursor: 'pointer' }}>✕</button>
+              </div>
+              <div style={{ padding: '20px 24px' }}>
+                <div style={{ fontSize: 11, color: '#555', fontWeight: 600, marginBottom: 14 }}>📸 FOTOS DE EVIDENCIA DEL TRUEQUE</div>
+                {tradeDetail.evidenceMsgs === null ? (
+                  <div style={{ fontSize: 13, color: '#555', padding: '20px 0' }}>Cargando fotos...</div>
+                ) : tradeDetail.evidenceMsgs.length === 0 ? (
+                  <div style={{ fontSize: 13, color: '#444', padding: '20px 0' }}>No hay fotos de evidencia en este trueque.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                    {tradeDetail.evidenceMsgs.map(m => {
+                      const src = m.evidencePhoto || m.imageUrl;
+                      return (
+                        <div key={m.id} style={{ textAlign: 'center' }}>
+                          <img
+                            src={src} alt="evidencia"
+                            onClick={() => setFullImg(src)}
+                            style={{ width: 160, height: 110, objectFit: 'cover', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', cursor: 'zoom-in', display: 'block' }}
+                          />
+                          <div style={{ fontSize: 11, color: '#555', marginTop: 4 }}>{m.fromName || 'Usuario'}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -642,6 +730,37 @@ export default function AdminDashboard({ onLogout }) {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* COMPLETED TRADES */}
+          {section === 'trades' && (
+            <div style={{ background: '#1A2332', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontWeight: 700, fontSize: 15, color: '#fff' }}>
+                🔄 Trueques completados ({completedTrades.length})
+              </div>
+              {completedTrades.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#444', fontSize: 13 }}>Sin trueques completados aún</div>
+              ) : completedTrades.map((trade, i) => {
+                const completedAt = trade.completedAt ? new Date(trade.completedAt).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+                const names = trade.participantNames ? Object.values(trade.participantNames).join(' ↔ ') : '';
+                return (
+                  <div key={trade.id} style={{ padding: '16px 20px', borderBottom: i < completedTrades.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ width: 44, height: 44, background: 'rgba(109,190,126,0.12)', border: '1px solid rgba(109,190,126,0.25)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>✅</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{trade.itemTitle || 'Trueque sin título'}</div>
+                      {names && <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{names}</div>}
+                      <div style={{ fontSize: 11, color: '#444', marginTop: 2 }}>{completedAt}</div>
+                    </div>
+                    <button
+                      onClick={() => setTradeDetail({ trade, evidenceMsgs: null })}
+                      style={{ padding: '7px 16px', background: 'rgba(109,190,126,0.15)', border: '1px solid rgba(109,190,126,0.3)', borderRadius: 100, color: '#6DBE7E', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                    >
+                      📸 Ver fotos
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
 
