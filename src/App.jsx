@@ -4,6 +4,7 @@ import { Auth } from './services/auth';
 import { FIREBASE_READY, auth } from './config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { seedDefaultChats } from './services/chat';
+import useIsMobile from './hooks/useIsMobile';
 import Sidebar from './components/Sidebar';
 import TweaksPanel from './components/TweaksPanel';
 import { TToast } from './components/ui';
@@ -46,6 +47,7 @@ function App() {
   });
 
   const theme = THEMES[tweaks.theme] || THEMES.verde;
+  const isMobile = useIsMobile();
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -128,7 +130,7 @@ function App() {
   );
 
   // Main app
-  const screenProps = { currentUser, theme, showToast, setPage };
+  const screenProps = { currentUser, theme, showToast, setPage, isMobile, onLogout: handleLogout };
 
   const renderPage = () => {
     switch (page) {
@@ -146,9 +148,17 @@ function App() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: theme.bg, overflow: 'hidden' }}>
-      <Sidebar page={page} setPage={setPage} currentUser={currentUser} theme={theme} onLogout={handleLogout} />
-      <div style={{ marginLeft: 220, flex: 1, overflowY: page === 'chat' ? 'hidden' : 'auto', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', height: '100dvh', background: theme.bg, overflow: 'hidden' }}>
+      <Sidebar page={page} setPage={setPage} currentUser={currentUser} theme={theme} onLogout={handleLogout} isMobile={isMobile} />
+      <div style={{
+        marginLeft: isMobile ? 0 : 220,
+        flex: 1,
+        overflowY: page === 'chat' ? 'hidden' : 'auto',
+        height: '100dvh',
+        paddingBottom: isMobile && page !== 'chat' ? 58 : 0,
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
         {renderPage()}
       </div>
       {tweakEl}

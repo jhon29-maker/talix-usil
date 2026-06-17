@@ -5,7 +5,7 @@ import EcoSpotsModal from './EcoSpotsModal';
 
 const CATS = ['Todos', 'Libros', 'Tecnología', 'Ropa', 'Accesorios'];
 
-export default function FeedPage({ setPage, setSelectedItem, setPublicUser, currentUser, theme, showToast }) {
+export default function FeedPage({ setPage, setSelectedItem, setPublicUser, currentUser, theme, showToast, isMobile }) {
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState('Todos');
@@ -32,10 +32,10 @@ export default function FeedPage({ setPage, setSelectedItem, setPublicUser, curr
         subtitle={`${items.length} artículos disponibles`}
         theme={theme}
         rightEl={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => setShowEcoSpots(true)} style={{ background: '#FFF3E0', border: 'none', padding: '7px 14px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, color: '#E65100' }}>📍 Eco-Spots</button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#E8F5E9', padding: '7px 14px', borderRadius: 100 }}>
-              <span>🌿</span><span style={{ fontSize: 13, fontWeight: 600, color: '#2E7D32' }}>-{totalCO2}kg CO₂</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10 }}>
+            <button onClick={() => setShowEcoSpots(true)} title="Eco-Spots" style={{ background: '#FFF3E0', border: 'none', padding: isMobile ? '7px 11px' : '7px 14px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, color: '#E65100' }}>{isMobile ? '📍' : '📍 Eco-Spots'}</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#E8F5E9', padding: isMobile ? '7px 11px' : '7px 14px', borderRadius: 100 }}>
+              <span>🌿</span><span style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: '#2E7D32', whiteSpace: 'nowrap' }}>-{totalCO2}kg</span>
             </div>
             <NotificationBell userId={currentUser?.id} theme={theme} />
           </div>
@@ -75,7 +75,7 @@ export default function FeedPage({ setPage, setSelectedItem, setPublicUser, curr
         </div>
       )}
 
-      <div style={{ padding: '24px 32px' }}>
+      <div style={{ padding: isMobile ? '16px 16px 28px' : '24px 32px' }}>
         {/* Search */}
         <div style={{ position: 'relative', marginBottom: 20 }}>
           <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>🔍</span>
@@ -100,7 +100,7 @@ export default function FeedPage({ setPage, setSelectedItem, setPublicUser, curr
 
         {/* Grid */}
         {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill,minmax(240px,1fr))', gap: isMobile ? 12 : 20 }}>
             {[...Array(6)].map((_, i) => (
               <div key={i} style={{ height: 300, background: '#fff', borderRadius: 20, animation: 'pulse 1.5s ease-in-out infinite', border: '1px solid #EEE' }} />
             ))}
@@ -113,7 +113,7 @@ export default function FeedPage({ setPage, setSelectedItem, setPublicUser, curr
             <TButton onClick={() => setPage('post')} theme={theme} style={{ marginTop: 20 }}>+ Publicar artículo</TButton>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill,minmax(240px,1fr))', gap: isMobile ? 12 : 20 }}>
             {filtered.map(item => (
               <TItemCard
                 key={item.id}

@@ -43,7 +43,7 @@ function StarRating({ rating, count }) {
   );
 }
 
-export default function PointsPage({ currentUser, theme }) {
+export default function PointsPage({ currentUser, theme, isMobile }) {
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
@@ -67,10 +67,10 @@ export default function PointsPage({ currentUser, theme }) {
   return (
     <div>
       <TTopBar title="🏆 Nivel & Ranking" subtitle="Tu trayectoria como intercambiador TALIX" theme={theme} />
-      <div style={{ padding: '28px 32px', maxWidth: 940 }}>
+      <div style={{ padding: isMobile ? '18px 16px 28px' : '28px 32px', maxWidth: 940 }}>
 
         {/* Hero card */}
-        <div style={{ background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primary}AA 100%)`, borderRadius: 24, padding: '28px 32px', color: '#fff', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primary}AA 100%)`, borderRadius: 24, padding: isMobile ? '22px 22px' : '28px 32px', color: '#fff', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 130, opacity: 0.1 }}>{myLevel.medal}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginBottom: 22 }}>
             <div style={{ fontSize: 60 }}>{myLevel.medal}</div>

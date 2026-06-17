@@ -8,7 +8,7 @@ const HISTORY = [
   { item: 'Auriculares Sony', with: 'Carlos R.', date: '10 Abr', co2: 8.0 },
 ];
 
-export default function ProfilePage({ setPage, currentUser, theme, showToast }) {
+export default function ProfilePage({ setPage, currentUser, theme, showToast, isMobile, onLogout }) {
   const [myItems, setMyItems] = useState([]);
   const [editMode, setEditMode] = useState(false);
   const [displayName, setDisplayName] = useState(currentUser?.displayName || '');
@@ -56,8 +56,8 @@ export default function ProfilePage({ setPage, currentUser, theme, showToast }) 
           </button>
         }
       />
-      <div style={{ padding: '32px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 24 }}>
+      <div style={{ padding: isMobile ? '18px 16px 28px' : '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '300px 1fr', gap: isMobile ? 16 : 24 }}>
           {/* Profile card */}
           <div>
             <div style={{ background: '#fff', borderRadius: 24, overflow: 'hidden', border: '1px solid #EEE', marginBottom: 16 }}>
@@ -104,6 +104,14 @@ export default function ProfilePage({ setPage, currentUser, theme, showToast }) 
                 </div>
               ))}
             </div>
+            {isMobile && onLogout && (
+              <button
+                onClick={onLogout}
+                style={{ width: '100%', marginTop: 16, padding: '13px', background: '#fff', border: '1.5px solid #FFCDD2', borderRadius: 14, color: '#E53935', fontFamily: 'Poppins', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+              >
+                Cerrar sesión
+              </button>
+            )}
           </div>
 
           {/* Items + history */}

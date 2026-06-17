@@ -4,7 +4,7 @@ import { ItemsService } from '../services/items';
 import { ChatService } from '../services/chat';
 import { TTopBar, TAvatar, TItemCard, TButton } from '../components/ui';
 
-export default function PublicProfilePage({ userId, setPage, currentUser, theme, showToast }) {
+export default function PublicProfilePage({ userId, setPage, currentUser, theme, showToast, isMobile }) {
   const [user, setUser] = useState(null);
   const [items, setItems] = useState([]);
 
@@ -39,10 +39,10 @@ export default function PublicProfilePage({ userId, setPage, currentUser, theme,
         theme={theme}
         rightEl={<button onClick={() => setPage('feed')} style={{ background: '#F4F6F0', border: 'none', padding: '8px 18px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: '#555' }}>← Volver</button>}
       />
-      <div style={{ padding: '32px', maxWidth: 900 }}>
+      <div style={{ padding: isMobile ? '18px 16px 28px' : '32px', maxWidth: 900 }}>
         <div style={{ background: '#fff', borderRadius: 24, overflow: 'hidden', border: '1px solid #EEE', marginBottom: 24 }}>
           <div style={{ height: 110, background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})` }} />
-          <div style={{ padding: '0 32px 28px' }}>
+          <div style={{ padding: isMobile ? '0 18px 24px' : '0 32px 28px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: -36, marginBottom: 12 }}>
               <TAvatar name={user.displayName || 'U'} color={user.avatarColor} size={72} />
               {currentUser?.id !== user.id && (

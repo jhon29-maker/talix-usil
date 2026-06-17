@@ -2,17 +2,44 @@ import { TAvatar } from './ui';
 import { isEliteUser } from '../screens/PointsPage';
 
 const NAV = [
-  { key: 'feed',      icon: '🏠', label: 'Inicio' },
-  { key: 'post',      icon: '➕', label: 'Publicar' },
-  { key: 'chat',      icon: '💬', label: 'Mensajes' },
-  { key: 'dashboard', icon: '🌿', label: 'Impacto CO₂' },
-  { key: 'points',    icon: '🏆', label: 'Puntos' },
-  { key: 'elite',     icon: '💎', label: 'Sala Elite', elite: true },
-  { key: 'profile',   icon: '👤', label: 'Mi Perfil' },
+  { key: 'feed',      icon: '🏠', label: 'Inicio',      short: 'Inicio' },
+  { key: 'post',      icon: '➕', label: 'Publicar',    short: 'Publicar' },
+  { key: 'chat',      icon: '💬', label: 'Mensajes',    short: 'Chats' },
+  { key: 'dashboard', icon: '🌿', label: 'Impacto CO₂', short: 'Impacto' },
+  { key: 'points',    icon: '🏆', label: 'Puntos',      short: 'Puntos' },
+  { key: 'elite',     icon: '💎', label: 'Sala Elite',  short: 'Elite', elite: true },
+  { key: 'profile',   icon: '👤', label: 'Mi Perfil',   short: 'Perfil' },
 ];
 
-export default function Sidebar({ page, setPage, currentUser, theme, onLogout }) {
+export default function Sidebar({ page, setPage, currentUser, theme, onLogout, isMobile }) {
   const elite = isEliteUser(currentUser);
+
+  // Mobile: fixed bottom tab bar
+  if (isMobile) {
+    return (
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 58, background: theme.primary, display: 'flex', zIndex: 200, boxShadow: '0 -2px 16px rgba(0,0,0,0.18)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        {NAV.map(n => {
+          const isLocked = n.elite && !elite;
+          const active = page === n.key;
+          return (
+            <button
+              key={n.key}
+              onClick={() => setPage(n.key)}
+              style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, border: 'none', background: 'transparent', cursor: 'pointer', color: active ? '#fff' : 'rgba(255,255,255,0.6)', fontFamily: 'Poppins', position: 'relative', padding: 0 }}
+            >
+              {active && <span style={{ position: 'absolute', top: 0, width: 26, height: 3, borderRadius: 3, background: '#fff' }} />}
+              <span style={{ fontSize: 19, position: 'relative', lineHeight: 1 }}>
+                {n.icon}
+                {isLocked && <span style={{ position: 'absolute', top: -5, right: -9, fontSize: 9 }}>🔒</span>}
+              </span>
+              <span style={{ fontSize: 9.5, fontWeight: active ? 700 : 500, whiteSpace: 'nowrap', letterSpacing: '-0.2px' }}>{n.short}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div style={{ width: 220, background: theme.primary, display: 'flex', flexDirection: 'column', padding: '0 0 20px', height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 100, boxShadow: '2px 0 16px rgba(0,0,0,0.12)' }}>
       <div style={{ padding: '26px 22px 18px', borderBottom: '1px solid rgba(255,255,255,0.15)' }}>

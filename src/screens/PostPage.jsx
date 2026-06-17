@@ -5,7 +5,7 @@ import { TTopBar, TInput, TButton } from '../components/ui';
 
 const CO2_EST = { Libros: 2.4, Tecnología: 12.5, Ropa: 5.0, Accesorios: 3.5 };
 
-export default function PostPage({ setPage, currentUser, theme, showToast }) {
+export default function PostPage({ setPage, currentUser, theme, showToast, isMobile }) {
   const [form, setForm] = useState({ title: '', cat: 'Libros', condition: 'Buen estado', want: '', desc: '' });
   const [photo, setPhoto] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -52,8 +52,8 @@ export default function PostPage({ setPage, currentUser, theme, showToast }) {
   return (
     <div>
       <TTopBar title="Publicar artículo" subtitle="Da segunda vida a tus cosas" theme={theme} />
-      <div style={{ padding: '32px', maxWidth: 760 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+      <div style={{ padding: isMobile ? '18px 16px 28px' : '32px', maxWidth: 760 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 16 : 24, marginBottom: 24 }}>
           {/* Left: photo + category + condition */}
           <div>
             <div

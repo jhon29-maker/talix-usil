@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ItemsService } from '../services/items';
 import { NotificationsService } from '../services/notifications';
+import useIsMobile from '../hooks/useIsMobile';
 
 export function categoryEmoji(cat) {
   return { Libros: '📚', Tecnología: '💻', Ropa: '👕', Accesorios: '🎒' }[cat] || '📦';
@@ -81,13 +82,14 @@ export function TItemCard({ item, onClick, onUserClick, theme, currentUserId }) 
 }
 
 export function TTopBar({ title, subtitle, theme, rightEl }) {
+  const isMobile = useIsMobile();
   return (
-    <div style={{ height: 68, background: '#fff', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
-      <div>
-        <div style={{ fontWeight: 700, fontSize: 18, color: '#1C2B2B' }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 12, color: '#999', marginTop: 1 }}>{subtitle}</div>}
+    <div style={{ minHeight: isMobile ? 58 : 68, background: '#fff', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: isMobile ? '8px 16px' : '0 32px', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: isMobile ? 16 : 18, color: '#1C2B2B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+        {subtitle && <div style={{ fontSize: isMobile ? 11 : 12, color: '#999', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitle}</div>}
       </div>
-      {rightEl}
+      {rightEl && <div style={{ flexShrink: 0 }}>{rightEl}</div>}
     </div>
   );
 }

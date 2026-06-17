@@ -15,7 +15,7 @@ function StarRating({ rating, count }) {
   );
 }
 
-export default function ElitePage({ currentUser, theme, showToast, setPage, setSelectedItem }) {
+export default function ElitePage({ currentUser, theme, showToast, setPage, setSelectedItem, isMobile }) {
   const [eliteUsers, setEliteUsers] = useState([]);
   const [eliteItems, setEliteItems] = useState([]);
 
@@ -86,10 +86,10 @@ export default function ElitePage({ currentUser, theme, showToast, setPage, setS
         subtitle={`Intercambiadores de alta confianza · ${myLevel.medal} ${myLevel.name}`}
         theme={theme}
       />
-      <div style={{ padding: '28px 32px' }}>
+      <div style={{ padding: isMobile ? '18px 16px 28px' : '28px 32px' }}>
 
         {/* Elite banner */}
-        <div style={{ background: 'linear-gradient(135deg, #1C2B2B, #2A3A3A)', borderRadius: 20, padding: '22px 28px', color: '#fff', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 18 }}>
+        <div style={{ background: 'linear-gradient(135deg, #1C2B2B, #2A3A3A)', borderRadius: 20, padding: isMobile ? '18px 20px' : '22px 28px', color: '#fff', marginBottom: 24, display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 18 }}>
           <div style={{ fontSize: 48 }}>💎</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 800, fontSize: 20 }}>Bienvenido, {myLevel.name}</div>

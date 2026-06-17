@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Auth } from '../services/auth';
 import { TInput, TButton } from '../components/ui';
 import { FACULTIES } from '../data/mockData';
+import useIsMobile from '../hooks/useIsMobile';
 
 export default function LoginPage({ onLogin, onAdminAccess, theme }) {
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState('login');
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
@@ -41,36 +43,51 @@ export default function LoginPage({ onLogin, onAdminAccess, theme }) {
   const handleKey = (e) => { if (e.key === 'Enter') handle(); };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: '#F4F6F0', fontFamily: 'Poppins, sans-serif' }}>
-      {/* Left panel */}
-      <div style={{ flex: 1, background: theme.primary, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 60, position: 'relative', overflow: 'hidden' }}>
-        {[...Array(4)].map((_, i) => (
-          <div key={i} style={{ position: 'absolute', borderRadius: '50%', border: `2px solid rgba(255,255,255,${0.04 + i * 0.04})`, width: 200 + i * 160, height: 200 + i * 160, top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }} />
-        ))}
-        <div style={{ position: 'relative', textAlign: 'center', color: '#fff' }}>
-          <div style={{ fontSize: 72, marginBottom: 16 }}>♻️</div>
-          <div style={{ fontWeight: 800, fontSize: 48, letterSpacing: '-2px', marginBottom: 8 }}>TALIX</div>
-          <div style={{ fontSize: 17, opacity: 0.85, maxWidth: 320, lineHeight: 1.6, fontWeight: 500 }}>
-            Trueque universitario sostenible para la comunidad USIL
-          </div>
-          <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {[
-              ['🌿', 'Reduce tu huella de carbono'],
-              ['📚', 'Da segunda vida a tus cosas'],
-              ['🤝', 'Conecta con compañeros USIL'],
-              ['📍', 'Coordina en Eco-Spots del campus'],
-            ].map(([icon, text]) => (
-              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.12)', padding: '12px 20px', borderRadius: 14 }}>
-                <span style={{ fontSize: 20 }}>{icon}</span>
-                <span style={{ fontSize: 14, fontWeight: 500 }}>{text}</span>
-              </div>
-            ))}
+    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: isMobile ? 'column' : 'row', background: '#F4F6F0', fontFamily: 'Poppins, sans-serif' }}>
+      {/* Left panel — full hero on desktop, compact banner on mobile */}
+      {isMobile ? (
+        <div style={{ background: theme.primary, color: '#fff', padding: '28px 24px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+          {[...Array(3)].map((_, i) => (
+            <div key={i} style={{ position: 'absolute', borderRadius: '50%', border: `2px solid rgba(255,255,255,${0.05 + i * 0.05})`, width: 160 + i * 120, height: 160 + i * 120, top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }} />
+          ))}
+          <div style={{ position: 'relative' }}>
+            <div style={{ fontSize: 40, marginBottom: 4 }}>♻️</div>
+            <div style={{ fontWeight: 800, fontSize: 30, letterSpacing: '-1px' }}>TALIX</div>
+            <div style={{ fontSize: 13, opacity: 0.85, lineHeight: 1.5, marginTop: 4 }}>
+              Trueque universitario sostenible · USIL
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ flex: 1, background: theme.primary, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 60, position: 'relative', overflow: 'hidden' }}>
+          {[...Array(4)].map((_, i) => (
+            <div key={i} style={{ position: 'absolute', borderRadius: '50%', border: `2px solid rgba(255,255,255,${0.04 + i * 0.04})`, width: 200 + i * 160, height: 200 + i * 160, top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }} />
+          ))}
+          <div style={{ position: 'relative', textAlign: 'center', color: '#fff' }}>
+            <div style={{ fontSize: 72, marginBottom: 16 }}>♻️</div>
+            <div style={{ fontWeight: 800, fontSize: 48, letterSpacing: '-2px', marginBottom: 8 }}>TALIX</div>
+            <div style={{ fontSize: 17, opacity: 0.85, maxWidth: 320, lineHeight: 1.6, fontWeight: 500 }}>
+              Trueque universitario sostenible para la comunidad USIL
+            </div>
+            <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[
+                ['🌿', 'Reduce tu huella de carbono'],
+                ['📚', 'Da segunda vida a tus cosas'],
+                ['🤝', 'Conecta con compañeros USIL'],
+                ['📍', 'Coordina en Eco-Spots del campus'],
+              ].map(([icon, text]) => (
+                <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.12)', padding: '12px 20px', borderRadius: 14 }}>
+                  <span style={{ fontSize: 20 }}>{icon}</span>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>{text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Right panel */}
-      <div style={{ width: 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 56px', background: '#fff', overflowY: 'auto' }}>
+      <div style={{ width: isMobile ? '100%' : 500, flex: isMobile ? 1 : 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '28px 22px 40px' : '48px 56px', background: '#fff', overflowY: 'auto', boxSizing: 'border-box' }}>
         {registered ? (
           <div style={{ width: '100%', maxWidth: 380, textAlign: 'center' }}>
             <div style={{ fontSize: 72, marginBottom: 16 }}>🎉</div>

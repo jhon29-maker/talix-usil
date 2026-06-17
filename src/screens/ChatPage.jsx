@@ -76,7 +76,7 @@ function fmtMsgTime(ts) {
   return d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ChatPage({ currentUser, theme, showToast }) {
+export default function ChatPage({ currentUser, theme, showToast, isMobile }) {
   const [convos, setConvos] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
   const [msgs, setMsgs] = useState([]);
@@ -428,7 +428,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: isMobile ? 'calc(100dvh - 58px)' : '100vh', overflow: 'hidden' }}>
       {/* Meetup proposal modal */}
       {showMeetupProposalModal && (() => {
         const convData = convos.find(c => c.id === activeConv?.id) || activeConv;
@@ -438,7 +438,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
         try { dateLabel = new Date(proposal.dateTime).toLocaleString('es', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); } catch(_) {}
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 8000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: '#fff', borderRadius: 24, width: 420, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.3)' }}>
+            <div style={{ background: '#fff', borderRadius: 24, width: 'min(420px, 92vw)', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.3)' }}>
               <div style={{ background: 'linear-gradient(135deg, #E8F5E9, #F1F8E9)', padding: '28px 24px 20px', textAlign: 'center' }}>
                 <div style={{ fontSize: 52, marginBottom: 8 }}>📅</div>
                 <div style={{ fontWeight: 700, fontSize: 18, color: '#1C2B2B', marginBottom: 4 }}>Nueva propuesta de encuentro</div>
@@ -494,7 +494,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
       {/* Report modal */}
       {showReport && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 7000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 24, width: 440, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+          <div style={{ background: '#fff', borderRadius: 24, width: 'min(440px, 92vw)', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
             <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid #EEE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontWeight: 700, fontSize: 16, color: '#1C2B2B' }}>⚠️ Reportar</div>
               <button onClick={() => { setShowReport(false); setReportText(''); setReportPhoto(null); }} style={{ background: '#F4F6F0', border: 'none', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 15 }}>✕</button>
@@ -534,7 +534,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
       {/* New chat modal */}
       {showNewChat && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 6000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 24, width: 420, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: '#fff', borderRadius: 24, width: 'min(420px, 92vw)', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '22px 24px 16px', borderBottom: '1px solid #EEE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontWeight: 700, fontSize: 17, color: '#1C2B2B' }}>💬 Nuevo mensaje</div>
               <button onClick={() => setShowNewChat(false)} style={{ background: '#F4F6F0', border: 'none', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 15 }}>✕</button>
@@ -604,8 +604,8 @@ export default function ChatPage({ currentUser, theme, showToast }) {
         </div>
       )}
 
-      {/* Conversations sidebar */}
-      <div style={{ width: 300, borderRight: '1px solid #EEE', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+      {/* Conversations sidebar — full width on mobile, hidden when a chat is open */}
+      <div style={{ width: isMobile ? '100%' : 300, borderRight: '1px solid #EEE', background: '#fff', display: isMobile && activeConv ? 'none' : 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #EEE' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <div style={{ fontWeight: 700, fontSize: 16, color: '#1C2B2B' }}>Mensajes</div>
@@ -668,6 +668,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
 
       {/* Chat window */}
       {!activeConv ? (
+        isMobile ? null : (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F9FAF8' }}>
           <div style={{ textAlign: 'center', color: '#AAA' }}>
             <div style={{ fontSize: 64, marginBottom: 14 }}>💬</div>
@@ -675,6 +676,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             <button onClick={() => setShowNewChat(true)} style={{ background: theme.primary, border: 'none', borderRadius: 100, padding: '12px 28px', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700, fontSize: 14, color: '#fff' }}>✏️ Nuevo mensaje</button>
           </div>
         </div>
+        )
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAF8', minWidth: 0 }}>
           {/* Header + Coordination panel — share liveConv data */}
@@ -683,14 +685,17 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             const myPendingProposal = liveConv.meetupProposal?.status === 'pending' && liveConv.meetupProposal?.proposedBy === currentUser?.id ? liveConv.meetupProposal : null;
             return (
               <>
-                <div style={{ padding: '14px 22px', background: '#fff', borderBottom: '1px solid #EEE', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                  <div style={{ position: 'relative' }}>
-                    <TAvatar name={getOtherName(activeConv)} color={getOtherColor(activeConv)} size={42} />
+                <div style={{ padding: isMobile ? '10px 14px' : '14px 22px', background: '#fff', borderBottom: '1px solid #EEE', display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexShrink: 0 }}>
+                  {isMobile && (
+                    <button onClick={() => setActiveConv(null)} title="Volver" style={{ background: '#F4F6F0', border: 'none', width: 36, height: 36, borderRadius: '50%', cursor: 'pointer', fontSize: 18, color: '#555', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>←</button>
+                  )}
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <TAvatar name={getOtherName(activeConv)} color={getOtherColor(activeConv)} size={isMobile ? 38 : 42} />
                     <div style={{ position: 'absolute', bottom: 1, right: 1, width: 10, height: 10, borderRadius: '50%', background: '#4CAF50', border: '2px solid #fff' }} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: '#1C2B2B' }}>{getOtherName(activeConv)} <span style={{ fontSize: 11, color: '#4CAF50', fontWeight: 600 }}>✓ USIL</span></div>
-                    {activeConv.itemTitle && <div style={{ fontSize: 12, color: '#888' }}>📦 {activeConv.itemTitle}</div>}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: isMobile ? 14 : 15, color: '#1C2B2B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getOtherName(activeConv)} <span style={{ fontSize: 11, color: '#4CAF50', fontWeight: 600 }}>✓ USIL</span></div>
+                    {activeConv.itemTitle && <div style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>📦 {activeConv.itemTitle}</div>}
                   </div>
                   {liveConv.meetup && (
                     <div style={{ background: '#E8F5E9', padding: '6px 12px', borderRadius: 100, fontSize: 12, fontWeight: 600, color: '#2E7D32' }}>
@@ -705,22 +710,25 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                   {liveConv.meetup && !tradeAlertDismissed.has(activeConv?.id) && !msgs.some(m => m.isSystem && m.text?.startsWith('🎉 ¡Trueque completado') && currentUser?.displayName && m.text?.includes(currentUser.displayName)) && (
                     <button
                       onClick={() => setShowTradeComplete(true)}
-                      style={{ background: '#E8F5E9', color: '#2E7D32', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
+                      title="Completar trueque"
+                      style={{ background: '#E8F5E9', color: '#2E7D32', border: 'none', padding: isMobile ? '8px 11px' : '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
                     >
-                      ✅ Completar trueque
+                      {isMobile ? '✅' : '✅ Completar trueque'}
                     </button>
                   )}
                   <button
                     onClick={() => setShowCoord(!showCoord)}
-                    style={{ background: showCoord ? theme.primary : '#F4F6F0', color: showCoord ? '#fff' : '#555', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, transition: 'all 0.2s', flexShrink: 0 }}
+                    title="Coordinar encuentro"
+                    style={{ background: showCoord ? theme.primary : '#F4F6F0', color: showCoord ? '#fff' : '#555', border: 'none', padding: isMobile ? '8px 11px' : '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, transition: 'all 0.2s', flexShrink: 0 }}
                   >
-                    📅 Coordinar
+                    {isMobile ? '📅' : '📅 Coordinar'}
                   </button>
                   <button
                     onClick={() => setShowReport(true)}
-                    style={{ background: '#FFEBEE', color: '#E53935', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
+                    title="Reportar"
+                    style={{ background: '#FFEBEE', color: '#E53935', border: 'none', padding: isMobile ? '8px 11px' : '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
                   >
-                    ⚠️ Reportar
+                    {isMobile ? '⚠️' : '⚠️ Reportar'}
                   </button>
                 </div>
 

@@ -3,7 +3,7 @@ import { ItemsService } from '../services/items';
 import { ChatService } from '../services/chat';
 import { TTopBar, TAvatar, TButton, TCategoryBadge, TConditionDot, categoryEmoji } from '../components/ui';
 
-export default function ItemDetailPage({ item, setPage, setPublicUser, currentUser, theme, showToast }) {
+export default function ItemDetailPage({ item, setPage, setPublicUser, currentUser, theme, showToast, isMobile }) {
   const [proposed, setProposed] = useState(false);
   const [offer, setOffer] = useState('');
   const [myItems, setMyItems] = useState([]);
@@ -36,7 +36,7 @@ export default function ItemDetailPage({ item, setPage, setPublicUser, currentUs
         theme={theme}
         rightEl={<button onClick={() => setPage('feed')} style={{ background: '#F4F6F0', border: 'none', padding: '8px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: '#555' }}>← Volver</button>}
       />
-      <div style={{ padding: '32px', display: 'grid', gridTemplateColumns: '1fr 360px', gap: 32, maxWidth: 1100 }}>
+      <div style={{ padding: isMobile ? '18px 16px 28px' : '32px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 360px', gap: isMobile ? 18 : 32, maxWidth: 1100 }}>
         <div>
           <div style={{ height: 300, background: item.bgColor || '#F4F6F0', borderRadius: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
             {item.photo ? <img src={item.photo} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 100 }}>{categoryEmoji(item.category)}</span>}

@@ -6,7 +6,7 @@ import { TTopBar, TAvatar, categoryEmoji } from '../components/ui';
 const CO2_CAT = { Libros: 2.4, Tecnología: 12.5, Ropa: 5.0, Accesorios: 3.5 };
 const MEDALS = ['🥇', '🥈', '🥉'];
 
-export default function DashboardPage({ currentUser, theme }) {
+export default function DashboardPage({ currentUser, theme, isMobile }) {
   const [allUsers, setAllUsers] = useState([]);
   const [allItems, setAllItems] = useState([]);
 
@@ -25,9 +25,9 @@ export default function DashboardPage({ currentUser, theme }) {
   return (
     <div>
       <TTopBar title="Impacto Ambiental" subtitle="Tu contribución a la sostenibilidad USIL" theme={theme} />
-      <div style={{ padding: '24px 32px' }}>
+      <div style={{ padding: isMobile ? '16px 16px 28px' : '24px 32px' }}>
         {/* Personal hero */}
-        <div style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}CC)`, borderRadius: 24, padding: '28px 32px', marginBottom: 24, color: '#fff', display: 'flex', alignItems: 'center', gap: 32 }}>
+        <div style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}CC)`, borderRadius: 24, padding: isMobile ? '22px 22px' : '28px 32px', marginBottom: 24, color: '#fff', display: 'flex', alignItems: 'center', gap: isMobile ? 16 : 32 }}>
           <div>
             <div style={{ fontSize: 13, opacity: 0.8, fontWeight: 500, marginBottom: 4 }}>MI IMPACTO PERSONAL</div>
             <div style={{ fontWeight: 800, fontSize: 42, letterSpacing: '-2px' }}>{myCO2} kg</div>
@@ -40,14 +40,14 @@ export default function DashboardPage({ currentUser, theme }) {
         </div>
 
         {/* Stats row */}
-        <div style={{ display: 'flex', gap: 16, marginBottom: 28 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: isMobile ? 12 : 16, marginBottom: 28 }}>
           {[
             { icon: '♻️', val: totalSwaps || allItems.length, label: 'Trueques USIL' },
             { icon: '🌿', val: `${(totalCO2 || myCO2 * 4).toFixed(0)}kg`, label: 'CO₂ ahorrado total', color: '#2E7D32' },
             { icon: '👥', val: Math.max(allUsers.length, 1), label: 'Usuarios activos' },
             { icon: '📦', val: allItems.length, label: 'Artículos publicados', color: '#E65100' },
           ].map((s, i) => (
-            <div key={i} style={{ background: '#fff', borderRadius: 20, padding: '20px 22px', border: '1px solid #EEE', flex: 1 }}>
+            <div key={i} style={{ background: '#fff', borderRadius: 20, padding: isMobile ? '16px 18px' : '20px 22px', border: '1px solid #EEE' }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>{s.icon}</div>
               <div style={{ fontWeight: 800, fontSize: 30, color: s.color || theme.primary, letterSpacing: '-1px' }}>{s.val}</div>
               <div style={{ fontWeight: 600, fontSize: 13, color: '#1C2B2B', marginTop: 2 }}>{s.label}</div>
