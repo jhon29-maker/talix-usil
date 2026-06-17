@@ -27,9 +27,10 @@ async function checkImageNSFW(dataUrl) {
     img.src = dataUrl;
     await new Promise(r => { img.onload = r; img.onerror = r; });
     const preds = await model.classify(img);
-    const porn = preds.find(p => p.className === 'Porn')?.probability || 0;
-    const hentai = preds.find(p => p.className === 'Hentai')?.probability || 0;
-    return (porn + hentai) > 0.5;
+    const prob = (name) => preds.find(p => p.className === name)?.probability || 0;
+    const porn = prob('Porn'), hentai = prob('Hentai'), sexy = prob('Sexy');
+    // More sensitive: flag explicit content at low confidence + strongly suggestive imagery.
+    return (porn + hentai) > 0.3 || porn > 0.2 || hentai > 0.2 || sexy > 0.7;
   } catch { return false; }
 }
 
@@ -224,7 +225,9 @@ export default function ChatPage({ currentUser, theme, showToast, isMobile }) {
     if (!input.trim() || !activeConv) return;
     const mod = ModerationService.checkText(input);
     if (!mod.ok) {
-      setBlockedMsg('Tu mensaje contiene lenguaje inapropiado y no puede ser enviado. 🚫');
+      setBlockedMsg(mod.reason === 'contact'
+        ? 'Por tu seguridad, no compartas números de teléfono ni contactos externos. Coordina dentro de TALIX. 🔒'
+        : 'Tu mensaje contiene lenguaje inapropiado y no puede ser enviado. 🚫');
       setTimeout(() => setBlockedMsg(''), 3500);
       return;
     }
@@ -920,7 +923,11 @@ export default function ChatPage({ currentUser, theme, showToast, isMobile }) {
               onFocus={e => e.target.style.borderColor = theme.primary}
               onBlur={e => e.target.style.borderColor = '#EEE'}
             />
-            <button onClick={send} disabled={!input.trim()} style={{ width: 44, height: 44, borderRadius: '50%', background: input.trim() ? theme.primary : '#DDD', border: 'none', color: '#fff', fontSize: 18, cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s', flexShrink: 0 }}>↑</button>
+            <button onClick={send} disabled={!input.trim()} aria-label="Enviar mensaje" style={{ width: 44, height: 44, borderRadius: '50%', background: input.trim() ? theme.primary : '#DDD', border: 'none', color: '#fff', cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s', flexShrink: 0, padding: 0 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
+                <path d="M3.4 20.6 21 12 3.4 3.4l-.02 6.47L15.5 12 3.38 14.13 3.4 20.6Z" fill="currentColor" />
+              </svg>
+            </button>
           </div>
         </div>
       )}
