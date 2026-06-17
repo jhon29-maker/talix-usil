@@ -110,9 +110,11 @@ export default function ChatPage({ currentUser, theme, showToast, isMobile }) {
   const fileInputRef = useRef(null);
   const activeConvRef = useRef(null);
   const allUsersRef = useRef([]);
+  const isMobileRef = useRef(isMobile);
 
   useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
   useEffect(() => { allUsersRef.current = allUsersList; }, [allUsersList]);
+  useEffect(() => { isMobileRef.current = isMobile; }, [isMobile]);
 
   useEffect(() => {
     return UsersService.subscribe(setAllUsersList);
@@ -140,7 +142,9 @@ export default function ChatPage({ currentUser, theme, showToast, isMobile }) {
         }
         return Object.keys(names).length > 0 ? { ...conv, participantNames: names } : conv;
       }));
-      if (!activeConvRef.current && sorted.length > 0) setActiveConv(sorted[0]);
+      // On mobile the conversation list is the default view — don't auto-open the first chat,
+      // otherwise pressing "back" would immediately re-open it on the next snapshot.
+      if (!activeConvRef.current && sorted.length > 0 && !isMobileRef.current) setActiveConv(sorted[0]);
     });
   }, [currentUser]);
 
