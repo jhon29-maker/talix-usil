@@ -486,8 +486,6 @@ export default function ChatPage({ currentUser, theme, showToast }) {
           onConfirmed={() => {
             if (activeConv?.id) {
               setTradeAlertDismissed(prev => new Set([...prev, activeConv.id]));
-              setConvos(prev => prev.map(c => c.id === activeConv.id ? { ...c, status: 'completado' } : c));
-              setActiveConv(prev => prev ? { ...prev, status: 'completado' } : prev);
             }
           }}
           onClose={() => { setShowTradeComplete(false); showToast('¡Trueque completado! +10 puntos 🏆', 'success'); }}
@@ -704,7 +702,7 @@ export default function ChatPage({ currentUser, theme, showToast }) {
                       ⏳ Esperando respuesta...
                     </div>
                   )}
-                  {liveConv.meetup && liveConv.status !== 'completado' && !msgs.some(m => m.isSystem && m.text?.startsWith('🎉 ¡Trueque completado') && currentUser?.displayName && m.text?.includes(currentUser.displayName)) && (
+                  {liveConv.meetup && !tradeAlertDismissed.has(activeConv?.id) && !msgs.some(m => m.isSystem && m.text?.startsWith('🎉 ¡Trueque completado') && currentUser?.displayName && m.text?.includes(currentUser.displayName)) && (
                     <button
                       onClick={() => setShowTradeComplete(true)}
                       style={{ background: '#E8F5E9', color: '#2E7D32', border: 'none', padding: '9px 16px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, flexShrink: 0 }}
@@ -780,10 +778,9 @@ export default function ChatPage({ currentUser, theme, showToast }) {
             <span style={{ fontSize: 11, color: '#795548', fontWeight: 500 }}>Por tu seguridad, <strong>no compartas números de teléfono</strong> ni coordines fuera de TALIX. Todos los intercambios deben realizarse en los Eco-Spots del campus.</span>
           </div>
 
-          {/* Trade confirm alert banner — dismissed when trade is done or user responds */}
+          {/* Trade confirm alert banner — dismissed when THIS user confirms or explicitly closes */}
           {msgs.some(m => m.isTradeConfirm && m.requesterId !== currentUser?.id)
             && !tradeAlertDismissed.has(activeConv?.id)
-            && (convos.find(c => c.id === activeConv?.id) || activeConv)?.status !== 'completado'
             && !msgs.some(m => m.isSystem && m.text?.startsWith('🎉 ¡Trueque completado') && currentUser?.displayName && m.text?.includes(currentUser.displayName))
             && (
             <div style={{ margin: '10px 16px 0', background: 'linear-gradient(135deg, #FFFDE7, #FFF8E1)', border: '2px solid #FFD54F', borderRadius: 18, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 16px rgba(255,193,7,0.25)', flexShrink: 0 }}>
