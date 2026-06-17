@@ -7,11 +7,13 @@ import { UsersService } from '../services/users';
 import { FIREBASE_READY, db, auth } from '../config/firebase';
 import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp, query, where } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
+import useIsMobile from '../hooks/useIsMobile';
 
 const STATUS_COLOR = { activo: '#4CAF50', inactivo: '#999', pendiente: '#F5A623', baneado: '#E53935' };
 const STATUS_BG    = { activo: '#E8F5E9', inactivo: '#F5F5F5', pendiente: '#FFF3E0', baneado: '#FFEBEE' };
 
 export default function AdminDashboard({ onLogout }) {
+  const isMobile = useIsMobile();
   const [section, setSection] = useState('overview');
   const [stats, setStats] = useState({ users: [], items: [], convos: [], totalSwaps: 0, totalCO2: '0', activeUsers: 0, bannedUsers: 0 });
   const [search, setSearch] = useState('');
@@ -248,7 +250,7 @@ export default function AdminDashboard({ onLogout }) {
       {/* Admin reply modal */}
       {replyModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#1A2332', borderRadius: 20, width: 460, padding: 28, border: '1px solid rgba(229,57,53,0.3)' }}>
+          <div style={{ background: '#1A2332', borderRadius: 20, width: 'min(460px, 92vw)', maxHeight: '90vh', overflowY: 'auto', padding: 28, border: '1px solid rgba(229,57,53,0.3)' }}>
             {replyDone ? (
               <>
                 <div style={{ textAlign: 'center', padding: '12px 0' }}>
@@ -421,7 +423,8 @@ export default function AdminDashboard({ onLogout }) {
         );
       })()}
 
-      {/* Admin sidebar */}
+      {/* Admin sidebar — desktop only */}
+      {!isMobile && (
       <div style={{ width: 240, background: '#1A2332', display: 'flex', flexDirection: 'column', padding: '0 0 24px', height: '100vh', position: 'fixed', left: 0, top: 0 }}>
         <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ fontWeight: 800, fontSize: 22, color: '#fff' }}>TALIX</div>
@@ -439,10 +442,34 @@ export default function AdminDashboard({ onLogout }) {
           <button onClick={onLogout} style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, color: '#666', fontFamily: 'Poppins', fontSize: 13, cursor: 'pointer' }}>← Cerrar sesión admin</button>
         </div>
       </div>
+      )}
 
       {/* Main content */}
-      <div style={{ marginLeft: 240, flex: 1, overflowY: 'auto', height: '100vh' }}>
-        {/* Top bar */}
+      <div style={{ marginLeft: isMobile ? 0 : 240, flex: 1, overflowY: 'auto', height: '100dvh', width: isMobile ? '100%' : 'auto', minWidth: 0 }}>
+        {/* Mobile admin header + horizontal nav */}
+        {isMobile && (
+          <div style={{ position: 'sticky', top: 0, zIndex: 60, background: '#1A2332', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontWeight: 800, fontSize: 18, color: '#fff' }}>TALIX</span>
+                <span style={{ fontSize: 10, color: '#F5A623', fontWeight: 700, letterSpacing: '1.5px' }}>ADMIN</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => PDFReportService.openPDF()} style={{ background: 'rgba(245,166,35,0.15)', border: '1px solid rgba(245,166,35,0.3)', padding: '7px 12px', borderRadius: 100, cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, color: '#F5A623' }}>📄 PDF</button>
+                <button onClick={onLogout} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', padding: '7px 12px', borderRadius: 100, color: '#888', fontFamily: 'Poppins', fontSize: 12, cursor: 'pointer' }}>Salir</button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 12px 10px', WebkitOverflowScrolling: 'touch' }}>
+              {navItems.map(n => (
+                <button key={n.key} onClick={() => setSection(n.key)} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 100, border: 'none', background: section === n.key ? 'rgba(245,166,35,0.18)' : 'rgba(255,255,255,0.05)', color: section === n.key ? '#F5A623' : 'rgba(255,255,255,0.55)', fontWeight: section === n.key ? 700 : 500, fontSize: 12, cursor: 'pointer', fontFamily: 'Poppins', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 14 }}>{n.icon}</span>{n.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Top bar — desktop only (mobile uses the sticky header above) */}
+        {!isMobile && (
         <div style={{ padding: '20px 32px', background: '#1A2332', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 18, color: '#fff' }}>
@@ -464,12 +491,13 @@ export default function AdminDashboard({ onLogout }) {
             <div style={{ background: 'rgba(245,166,35,0.15)', border: '1px solid rgba(245,166,35,0.3)', padding: '6px 14px', borderRadius: 100, fontSize: 12, fontWeight: 600, color: '#F5A623' }}>🔐 Admin USIL</div>
           </div>
         </div>
+        )}
 
-        <div style={{ padding: '28px 32px' }}>
+        <div style={{ padding: isMobile ? '16px 14px 32px' : '28px 32px' }}>
           {/* OVERVIEW */}
           {section === 'overview' && (
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: isMobile ? 12 : 16, marginBottom: 24 }}>
                 {[
                   { icon: '👥', val: stats.users.length, label: 'Usuarios registrados', sub: `${stats.activeUsers} activos`, color: '#5B9BD5' },
                   { icon: '🔄', val: stats.totalSwaps, label: 'Trueques totales', sub: 'Acumulado', color: '#6DBE7E' },
@@ -484,7 +512,7 @@ export default function AdminDashboard({ onLogout }) {
                   </div>
                 ))}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 14 : 20 }}>
                 <div style={{ background: '#1A2332', borderRadius: 20, padding: 24, border: '1px solid rgba(255,255,255,0.07)' }}>
                   <div style={{ fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 18 }}>📊 Usuarios por facultad</div>
                   {faculties.length === 0
@@ -563,7 +591,7 @@ export default function AdminDashboard({ onLogout }) {
               {/* Ban modal */}
               {banModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ background: '#1A2332', borderRadius: 20, width: 420, padding: 28, border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ background: '#1A2332', borderRadius: 20, width: 'min(420px, 92vw)', padding: 28, border: '1px solid rgba(255,255,255,0.1)' }}>
                     <div style={{ fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>🚫 Banear usuario</div>
                     <div style={{ fontSize: 13, color: '#888', marginBottom: 18 }}>Usuario: <strong style={{ color: '#E57373' }}>{banModal.displayName}</strong></div>
                     <label style={{ fontSize: 12, color: '#888', display: 'block', marginBottom: 6 }}>Razón del baneo</label>
@@ -588,7 +616,7 @@ export default function AdminDashboard({ onLogout }) {
               {/* Delete user confirmation modal */}
               {deleteModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ background: '#1A2332', borderRadius: 20, width: 400, padding: 28, border: '1px solid rgba(229,57,53,0.3)' }}>
+                  <div style={{ background: '#1A2332', borderRadius: 20, width: 'min(400px, 92vw)', padding: 28, border: '1px solid rgba(229,57,53,0.3)' }}>
                     <div style={{ fontSize: 36, textAlign: 'center', marginBottom: 12 }}>⚠️</div>
                     <div style={{ fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 8, textAlign: 'center' }}>Eliminar usuario permanentemente</div>
                     <div style={{ fontSize: 13, color: '#888', marginBottom: 20, textAlign: 'center', lineHeight: 1.6 }}>
@@ -603,14 +631,14 @@ export default function AdminDashboard({ onLogout }) {
                 </div>
               )}
 
-              <div style={{ background: '#1A2332', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: 11, fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <div style={{ background: '#1A2332', borderRadius: 20, overflow: isMobile ? 'auto' : 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', minWidth: isMobile ? 820 : 'auto', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: 11, fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   <span>Nombre</span><span>Correo</span><span>Contraseña</span><span>Facultad</span><span>Pts</span><span>IP</span><span>Estado</span><span>Acciones</span>
                 </div>
                 {filteredUsers.length === 0 ? (
                   <div style={{ padding: '32px', textAlign: 'center', color: '#444', fontSize: 13 }}>No se encontraron usuarios</div>
                 ) : filteredUsers.map((u, i) => (
-                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', padding: '14px 20px', borderBottom: i < filteredUsers.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', alignItems: 'center' }}>
+                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1.5fr 0.7fr 1.2fr 1fr 1.2fr', minWidth: isMobile ? 820 : 'auto', padding: '14px 20px', borderBottom: i < filteredUsers.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: u.avatarColor || '#2A3444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                         {(u.displayName || 'U').split(' ').map(w => w[0]).join('').slice(0, 2)}
@@ -665,14 +693,14 @@ export default function AdminDashboard({ onLogout }) {
                 <button onClick={() => exportEmails('csv')} style={{ padding: '9px 18px', background: 'rgba(109,190,126,0.15)', border: '1px solid rgba(109,190,126,0.3)', borderRadius: 100, color: '#6DBE7E', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>⬇️ Exportar CSV</button>
                 <button onClick={() => exportEmails('txt')} style={{ padding: '9px 18px', background: 'rgba(245,166,35,0.15)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: 100, color: '#F5A623', fontFamily: 'Poppins', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>⬇️ Exportar TXT</button>
               </div>
-              <div style={{ background: '#1A2332', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 2fr 1.5fr', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: 11, fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <div style={{ background: '#1A2332', borderRadius: 20, overflow: isMobile ? 'auto' : 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 2fr 1.5fr', minWidth: isMobile ? 620 : 'auto', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: 11, fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   <span>Nombre</span><span>Correo</span><span>Facultad</span><span>Fecha registro</span>
                 </div>
                 {allEmails.length === 0 ? (
                   <div style={{ padding: '40px', textAlign: 'center', color: '#444', fontSize: 13 }}>Sin correos registrados aún</div>
                 ) : allEmails.map((u, i) => (
-                  <div key={u.email} style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 2fr 1.5fr', padding: '14px 20px', borderBottom: i < allEmails.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', alignItems: 'center' }}>
+                  <div key={u.email} style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 2fr 1.5fr', minWidth: isMobile ? 620 : 'auto', padding: '14px 20px', borderBottom: i < allEmails.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', alignItems: 'center' }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#CCC' }}>{u.displayName || '—'}</div>
                     <div style={{ fontSize: 12, color: '#5B9BD5', fontFamily: 'monospace' }}>{u.email}</div>
                     <div style={{ fontSize: 12, color: '#666' }}>{u.faculty || '—'}</div>
@@ -692,7 +720,7 @@ export default function AdminDashboard({ onLogout }) {
               {stats.items.length === 0 ? (
                 <div style={{ padding: '40px', textAlign: 'center', color: '#444', fontSize: 13 }}>Sin artículos publicados aún</div>
               ) : stats.items.map((item, i) => (
-                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: i < stats.items.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, flexWrap: isMobile ? 'wrap' : 'nowrap', padding: '14px 20px', borderBottom: i < stats.items.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                   <div style={{ width: 48, height: 48, borderRadius: 12, background: item.bgColor || '#2A3444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0, overflow: 'hidden' }}>
                     {item.photo ? <img src={item.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : categoryEmoji(item.category)}
                   </div>
@@ -821,7 +849,7 @@ export default function AdminDashboard({ onLogout }) {
           {/* REPORTS */}
           {section === 'reports' && (
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 14 : 20, marginBottom: 20 }}>
                 <div style={{ background: '#1A2332', borderRadius: 20, padding: 24, border: '1px solid rgba(255,255,255,0.07)' }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: '#fff', marginBottom: 20 }}>📦 Artículos por categoría</div>
                   {['Libros', 'Tecnología', 'Ropa', 'Accesorios'].map((cat, i) => {
@@ -867,7 +895,7 @@ export default function AdminDashboard({ onLogout }) {
               </div>
               <div style={{ background: '#1A2332', borderRadius: 20, padding: 24, border: '1px solid rgba(255,255,255,0.07)' }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: '#fff', marginBottom: 16 }}>📋 Resumen ejecutivo</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5,1fr)', gap: isMobile ? 10 : 14 }}>
                   {[
                     { label: 'Total usuarios', val: stats.users.length, color: '#5B9BD5' },
                     { label: 'Total artículos', val: stats.items.length, color: '#F5A623' },

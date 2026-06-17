@@ -20,8 +20,8 @@ export default function AdminLoginPage({ onAdminLogin, onBack }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0F1923', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Poppins, sans-serif' }}>
-      <div style={{ width: 420 }}>
+    <div style={{ minHeight: '100dvh', background: '#0F1923', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Poppins, sans-serif' }}>
+      <div style={{ width: 'min(420px, 100%)' }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ fontWeight: 800, fontSize: 36, color: '#fff', letterSpacing: '-1px' }}>TALIX <span style={{ color: '#F5A623' }}>Admin</span></div>
           <div style={{ fontSize: 13, color: '#444', marginTop: 6 }}>Panel de control · Universidad San Ignacio de Loyola</div>
